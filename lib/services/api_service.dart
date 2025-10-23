@@ -1,59 +1,41 @@
 // lib/services/api_service.dart
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:wellbeing_mobile_app/models/weather_model.dart'; 
-import 'package:wellbeing_mobile_app/models/quote_model.dart'; 
-
-// CRITICAL: Replace this with your actual OpenWeatherMap key at the end of Phase 2
-const String kWeatherApiKey = 'YOUR_OPENWEATHERMAP_API_KEY';
-const String kWeatherBaseUrl = 'https://api.openweathermap.org/data/2.5';
-const String kQuoteApiUrl = 'https://api.quotable.io/random';
+import '../models/weather_model.dart';
 
 class ApiService {
-  // --- 1. Weather API Fetcher ---
-  Future<WeatherModel> fetchWeatherData({
-    double lat = 51.5074, 
-    double lon = 0.1278,
-  }) async {
-    final url = Uri.parse(
-      '$kWeatherBaseUrl/forecast?lat=$lat&lon=$lon&appid=$kWeatherApiKey&units=metric'
-    );
-    
-    if (kWeatherApiKey == 'YOUR_OPENWEATHERMAP_API_KEY') {
-       print('ERROR: Placeholder key detected. Using loading state.');
-       return WeatherModel.loading();
-    }
+  // 💡 ACTION: Replace the placeholder with your actual OpenWeatherMap API Key.
+  static const String openWeatherApiKey = 'YOUR_OPENWEATHERMAP_API_KEY'; 
+  
+  // Note: For a real app, API keys should be secured (e.g., using environment variables).
 
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return WeatherModel.fromJson(data);
-      } else {
-        throw Exception('Failed to load weather data: Status ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Network/Parsing Error in fetchWeatherData: $e');
-      return WeatherModel.loading();
+  // Fetch Weather Data
+  Future<WeatherModel> fetchWeather(String city) async {
+    final weatherUrl = Uri.parse(
+        'https://api.openweathermap.org/data/2.5/weather?q=$city&units=metric&appid=$openWeatherApiKey');
+
+    final response = await http.get(weatherUrl);
+
+    if (response.statusCode == 200) {
+      return WeatherModel.fromJson(jsonDecode(response.body));
+    } else {
+      throw Exception('Failed to load weather data');
     }
   }
 
-  // --- 2. Quote API Fetcher ---
-  Future<QuoteModel> fetchQuoteData() async {
-    final url = Uri.parse(kQuoteApiUrl);
+  // Fetch Inspirational Quote (using a public, simple API)
+  Future<String> fetchQuote() async {
+    // Using a public API for simple quote fetching
+    final quoteUrl = Uri.parse('https://api.quotable.io/random');
 
-    try {
-      final response = await http.get(url);
+    final response = await http.get(quoteUrl);
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return QuoteModel.fromJson(data);
-      } else {
-        throw Exception('Failed to load quote: Status ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Network/Parsing Error in fetchQuoteData: $e');
-      return QuoteModel.loading();
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return '"${data['content']}" - ${data['author']}';
+    } else {
+      return '"The secret of getting ahead is getting started." - Mark Twain (Placeholder)';
     }
   }
 }

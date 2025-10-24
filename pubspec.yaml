@@ -1,41 +1,42 @@
 name: wellbeing_mobile_app
-description: A new Flutter project.
+description: A new Flutter project for a Wellbeing Coach app.
+
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0' # Use your actual Flutter SDK constraint if different
+  sdk: '>=3.3.0 <4.0.0'
 
-# THIS IS THE SINGLE, CORRECT 'dependencies:' BLOCK
 dependencies:
   flutter:
     sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.6
   
-  # Existing packages:
-  fl_chart: ^0.68.0
-  geolocator: ^11.0.0
-  intl: ^0.18.0
-  shared_preferences: ^2.2.0
-  flutter_tts: ^4.0.0
-  cupertino_icons: ^1.0.2
+  # Core Packages
   font_awesome_flutter: ^10.7.0
+  shared_preferences: ^2.2.2
   
-  # NEW DATABASE PACKAGES (Firebase)
-  firebase_core: ^2.27.0
-  firebase_auth: ^4.17.8
-  cloud_firestore: ^4.15.8
+  # NEW: For Date Formatting (used in GoalScreen)
+  intl: ^0.20.2 
   
-  # (You had sqlite and path_provider, but if you're using Firestore, 
-  # you likely don't need them. I'm leaving them out for simplicity 
-  # to focus on the Firebase setup, but you can add them back 
-  # if needed, ensuring correct indentation.)
+  # NEW: For generating unique IDs (used in GoalModel)
+  uuid: ^4.3.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^3.0.1
 
-# The following section is specific to Flutter:
+# The following section is specific to Flutter.
 flutter:
   uses-material-design: true
+
+  # To add assets to your application, add an assets section, like this:
+  # assets:
+  #   - images/

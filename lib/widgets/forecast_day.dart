@@ -36,14 +36,14 @@ class ForecastDay extends StatelessWidget {
           children: <Widget>[
             Text(
               day,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textDark),
             ),
             Text(
               date,
-              style: TextStyle(fontSize: 10, color: AppColors.textSubtle),
+              style: const TextStyle(fontSize: 10, color: AppColors.textSubtle),
             ),
             const SizedBox(height: 8),
             // Icon color is passed dynamically based on weather condition
@@ -51,7 +51,7 @@ class ForecastDay extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               temp,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textDark),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textDark),
             ),
           ],
         ),

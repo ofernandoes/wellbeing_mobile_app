@@ -81,18 +81,17 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: AppColors.background, 
 
         // 3. Color Scheme Setup (Essential for Material 3 components)
-        colorScheme: ColorScheme.light(
+        colorScheme: const ColorScheme.light(
           primary: AppColors.primaryColor, // Light Aqua Blue
-          secondary: AppColors.accent, // Vibrant Orange/Yellow
-          background: AppColors.background, // Off-White
+          secondary: AppColors.accent, // Off-White
           surface: AppColors.secondary, // Very Pale Aqua for cards/surfaces
         ),
 
         // 4. App Bar style
-        appBarTheme: AppBarTheme(
+        appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.primaryColor,
-          titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-          iconTheme: const IconThemeData(color: Colors.white),
+          titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          iconTheme: IconThemeData(color: Colors.white),
         ),
         
         // 5. Text Theme
@@ -232,11 +231,11 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
           padding: EdgeInsets.zero,
           children: <Widget>[
             // Drawer Header with App Name/Version
-            DrawerHeader(
+            const DrawerHeader(
               decoration: BoxDecoration(
                 color: AppColors.primaryColor,  
               ),
-              child: const Text(
+              child: Text(
                 'Wellbeing Coach I2.0',
                 style: TextStyle(
                   color: Colors.white,  
@@ -313,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Initial State Variables
   String _userName = 'User';
-  int _entryCount = 0;  
+  final int _entryCount = 0;  
   String _weatherSuggestion = 'Loading suggestion...';
   
   // Weather State variables
@@ -559,11 +558,12 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setInt('lastVisitTimestamp', now.millisecondsSinceEpoch);
   }
 
-  void _openNewEntry(BuildContext context) async {
+
+void _openNewEntry(BuildContext context) async {
     // The state is updated only when returning from EntryScreen
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const EntryScreen(),  
+        builder: (context) => const DailyCheckinScreen(), // <--- CHANGE IS HERE
       ),
     );
     // Reload data on return from entry screen
@@ -572,6 +572,15 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {});
     }
   }
+
+
+
+  
+
+
+
+
+
 
   // FIX: New Widget for the Check-in Chip
   Widget _buildNewEntryChip(BuildContext context) {
@@ -610,9 +619,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),  
               title: Text(
                 '$_currentTemp°C, $_weatherCondition',  
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark)
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark)
               ),  
-              subtitle: Text(_weatherSuggestion, style: TextStyle(color: AppColors.textSubtle)),
+              subtitle: Text(_weatherSuggestion, style: const TextStyle(color: AppColors.textSubtle)),
             ),
             
             const Divider(height: 20, color: AppColors.textSubtle),
@@ -663,7 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             // Use static "Welcome back" to match the image, or _getTimeGreeting() for dynamism
             'Welcome back, $_userName.',  
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryColor),  
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryColor),  
           ),
           const SizedBox(height: 4),
           
@@ -672,7 +681,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
+              const Text(
                 supportiveSuggestionText,
                 style: TextStyle(fontSize: 16, color: AppColors.textSubtle),  
               ),
@@ -687,7 +696,7 @@ class _HomeScreenState extends State<HomeScreen> {
             future: _initialLoadFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(child: LinearProgressIndicator(minHeight: 10, color: AppColors.primaryColor));  
+                return const Center(child: LinearProgressIndicator(minHeight: 10, color: AppColors.primaryColor));  
               } else {
                 return _buildWeatherCard();
               }
@@ -696,7 +705,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const Divider(height: 40, color: Colors.transparent), // Use transparent divider for spacing
 
           // --- C. ACTION PROMPT & CHIPS ---
-          Text(
+          const Text(
             'What do you want to work on right now?',  
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textDark),  
           ),
@@ -741,7 +750,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const Divider(height: 40, color: Colors.transparent),
 
           // --- D. QUOTE ---
-          Text(
+          const Text(
             'Your Quote for the Day:',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textDark),  
           ),
@@ -757,7 +766,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     _quote,
-                    style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: AppColors.textDark),  
+                    style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: AppColors.textDark),  
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -765,7 +774,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         _author,
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primaryColor),  
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primaryColor),  
                       ),
                     ],
                   ),
@@ -774,8 +783,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
                       onPressed: () => flutterTts.speak(_quote),
-                      icon: Icon(Icons.volume_up, size: 18, color: AppColors.textSubtle),
-                      label: Text('Listen', style: TextStyle(color: AppColors.textSubtle)),
+                      icon: const Icon(Icons.volume_up, size: 18, color: AppColors.textSubtle),
+                      label: const Text('Listen', style: TextStyle(color: AppColors.textSubtle)),
                     ),
                   )
                 ],
@@ -785,7 +794,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const Divider(height: 40, color: Colors.transparent),
 
           // --- E. Goals Snapshot (PLACEHOLDER) ---
-          Text(
+          const Text(
             'Your Current Focus:',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textDark),  
           ),
@@ -795,19 +804,19 @@ class _HomeScreenState extends State<HomeScreen> {
             color: AppColors.secondary, // Very Pale Aqua
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
             child: ListTile(
-              title: Text(
+              title: const Text(
                 'Learn a New Language',
                 style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryColor),  
               ),
-              subtitle: Column(
+              subtitle: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Target: 75% complete by December', style: TextStyle(color: AppColors.textDark)),  
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                 ],
               ),
               isThreeLine: false,
-              trailing: Icon(Icons.arrow_forward_ios, color: AppColors.textSubtle),  
+              trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textSubtle),  
               onTap: () {
                 final mainState = context.findAncestorStateOfType<_MainAppScaffoldState>();
                 mainState?._onItemTapped(1);
@@ -821,8 +830,8 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: AppColors.textSubtle.withOpacity(0.3),  
             color: AppColors.primaryColor // Primary Color for the progress bar
           ),  
-          Padding(
-            padding: const EdgeInsets.only(top: 4.0),
+          const Padding(
+            padding: EdgeInsets.only(top: 4.0),
             child: Text('75% Complete - 9 months remaining.', style: TextStyle(color: AppColors.textSubtle)),
           ),
           // ⚠️ FIX: Missing closing brace for the build method's Column

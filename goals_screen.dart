@@ -155,7 +155,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                 style: const TextStyle(fontWeight: FontWeight.w600),
                               ),
                               Text(
-                                '${remainingDays < 0 ? 'Overdue' : '$remainingDays days left'}',
+                                remainingDays < 0 ? 'Overdue' : '$remainingDays days left',
                                 style: TextStyle(
                                   color: remainingDays < 7 ? Colors.red : Colors.grey.shade600,
                                   fontWeight: FontWeight.w500,
@@ -169,7 +169,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),

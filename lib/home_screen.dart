@@ -1,13 +1,22 @@
 // lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-import 'package:wellbeing_mobile_app/services/api_service.dart';
+// NOTE: Assuming these are your existing model/service imports.
+import 'package:wellbeing_mobile_app/services/api_service.dart'; 
 import 'package:wellbeing_mobile_app/models/weather_model.dart';
 import 'package:wellbeing_mobile_app/models/quote_model.dart';
 
-// ------------------- HomeScreen (Now Stateful) -------------------
+// Check-in Imports (Adjusted path assumption based on typical Flutter project structure)
+import '../services/checkin_service.dart'; 
+import 'daily_checkin_screen.dart';     
+import 'history_screen.dart'; 
+import '../widgets/app_drawer.dart'; // Assuming AppDrawer is in widgets folder
+import '../widgets/weather_card.dart'; // Assuming WeatherCard is in widgets folder
+import '../widgets/quote_card.dart'; // Assuming QuoteCard is in widgets folder
+
+
+// ------------------- HomeScreen -------------------
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,19 +31,69 @@ class _HomeScreenState extends State<HomeScreen> {
   late QuoteModel _quoteData;
   final ApiService _apiService = ApiService();
 
+  // State for Check-in History
+  DailyCheckin? _latestCheckin;
+  List<DailyCheckin> _checkinHistory = [];
+  bool _isLoading = true; 
+
+  // State Variables for Summary (Used by _buildMoodSummary)
+  double _recentAverageMood = 0.0;
+  int _checkinCountLast7Days = 0; 
+
+
   @override
   void initState() {
     super.initState();
-    // Initialize data with loading states
     _weatherData = WeatherModel.loading();
     _quoteData = QuoteModel.loading();
     
-    // 2. Start data fetching when the screen initializes
     _fetchInitialData();
+    _loadCheckinData();
+  }
+
+  // UPDATED: Function to load the latest check-in and calculate the 7-day average
+  Future<void> _loadCheckinData() async {
+    final service = CheckinService();
+    final history = await service.getCheckinHistory();
+
+    history.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    if (mounted) {
+      if (history.isNotEmpty) {
+        _latestCheckin = history.first;
+        _checkinHistory = history;
+
+        // --- Calculate 7-Day Average ---
+        final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+        
+        final recentCheckins = history.where(
+          (c) => c.timestamp.isAfter(sevenDaysAgo) && c.timestamp.isBefore(DateTime.now())
+        ).toList();
+        
+        _checkinCountLast7Days = recentCheckins.length;
+
+        if (_checkinCountLast7Days > 0) {
+          final totalScore = recentCheckins.fold(0, (sum, item) => sum + item.moodScore);
+          _recentAverageMood = totalScore / _checkinCountLast7Days;
+        } else {
+          _recentAverageMood = 0.0;
+        }
+        // ------------------------------------
+        
+      } else {
+        _latestCheckin = null;
+        _checkinHistory = [];
+        _recentAverageMood = 0.0; 
+        _checkinCountLast7Days = 0;
+      }
+      
+      setState(() {
+        _isLoading = false; 
+      });
+    }
   }
 
   Future<void> _fetchInitialData() async {
-    // Note: We use Future.wait to fetch data concurrently for speed
     try {
       final results = await Future.wait([
         _apiService.fetchWeatherData(),
@@ -48,10 +107,8 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      // Handle the case where the API service itself failed (e.g., placeholder key)
       if (mounted) {
         setState(() {
-          // Keep loading state or show specific error if desired
           _weatherData = WeatherModel.loading(); 
           _quoteData = QuoteModel.loading();
         });
@@ -59,6 +116,19 @@ class _HomeScreenState extends State<HomeScreen> {
       print("Error fetching initial data: $e");
     }
   }
+
+  // Helper function to handle navigation and refresh
+  Future<void> _navigateToCheckinScreen(BuildContext context) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const DailyCheckinScreen(),
+      ),
+    );
+    if (result == true) { 
+      _loadCheckinData();
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -75,82 +145,253 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(onPressed: () {}, icon: const Icon(Icons.home)),
           IconButton(onPressed: () {}, icon: const Icon(Icons.flash_on)),
           IconButton(onPressed: () {}, icon: const Icon(Icons.notifications)),
-          CircleAvatar(
+          const CircleAvatar(
             backgroundColor: Colors.white,
             child: Text('F', style: TextStyle(color: AppColors.primaryColor)),
           ),
           const SizedBox(width: 8),
         ],
       ),
-      drawer: const AppDrawer(),
-      body: SingleChildScrollView(
+      drawer: const AppDrawer(), 
+      body: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16.0),
+              children: <Widget>[
+                _buildGreeting(context),
+                const SizedBox(height: 20),
+                
+                // Add Check-in Button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _navigateToCheckinScreen(context), 
+                    icon: const Icon(Icons.add_task),
+                    label: const Text('Check-in Now!'), 
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // 1. 7-Day Mood Summary (NEW)
+                _buildMoodSummary(), 
+                const SizedBox(height: 20),
+                
+                // 2. Latest Check-in Card (Finalized and uses live data)
+                if (_latestCheckin != null) _buildLatestCheckinCard(),
+                const SizedBox(height: 20),
+
+                // 3. Weather Card 
+                WeatherCard(weatherData: _weatherData),
+                const SizedBox(height: 20),
+
+                // 4. Action Buttons
+                const Text('What do you want to work on right now?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 10),
+                _buildActionButtons(),
+                const SizedBox(height: 20),
+
+                // 5. Quote Card 
+                QuoteCard(quoteData: _quoteData),
+                const SizedBox(height: 20),
+                
+                // 6. Current Focus/Goal (Mock Data - To be replaced by Goal Feature)
+                const Text('Your Current Focus:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 10),
+                _buildFocusCard(context),
+              ],
+            ),
+    );
+  }
+
+  // --- Widget Builders ---
+  
+  // NEW: Helper method to generate the mood summary widget
+  Widget _buildMoodSummary() {
+    if (_checkinCountLast7Days == 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.secondary,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Text(
+          'No check-ins in the last 7 days. Tap "Check-in Now!" to start tracking your mood.',
+          style: TextStyle(color: AppColors.textSubtle),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    // Determine the summary text based on the average mood
+    String summaryText;
+    Color summaryColor;
+    
+    if (_recentAverageMood >= 4.0) {
+      summaryText = 'Great job! Your average mood is High.';
+      summaryColor = AppColors.accent;
+    } else if (_recentAverageMood >= 3.0) {
+      summaryText = 'Your mood is stable. Keep an eye on things.';
+      summaryColor = AppColors.success;
+    } else {
+      summaryText = 'Your average mood is low. It might be time to reflect or seek support.';
+      summaryColor = AppColors.error;
+    }
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your Mood Summary (Last 7 Days)',
+              style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              summaryText,
+              style: TextStyle(fontSize: 16, color: summaryColor, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 15),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _recentAverageMood.toStringAsFixed(2),
+                      style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: summaryColor),
+                    ),
+                    const Text(
+                      'Average Score / 5',
+                      style: TextStyle(color: AppColors.textSubtle, fontSize: 12),
+                    ),
+                  ],
+                ),
+                Text(
+                  'from $_checkinCountLast7Days entries',
+                  style: const TextStyle(color: AppColors.textDark, fontSize: 14),
+                ),
+              ],
+            ),
+             const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const HistoryScreen(),
+                    ),
+                  );
+                  _loadCheckinData(); 
+                },
+                child: const Text('View Full History >>', style: TextStyle(color: AppColors.primaryColor)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // FINALIZED: Latest Check-in Card (Replaces the old _buildHistorySummary)
+  Widget _buildLatestCheckinCard() {
+    if (_latestCheckin == null) {
+      return const SizedBox.shrink();
+    }
+    
+    final latestCheckin = _latestCheckin!;
+    final formattedDate = DateFormat('MMM d, h:mm a').format(latestCheckin.timestamp);
+    
+    // Map mood score to an icon/label 
+    final moodText = latestCheckin.moodScore == 5 ? 'Great' : 
+                     latestCheckin.moodScore == 4 ? 'Good' : 
+                     latestCheckin.moodScore == 3 ? 'Okay' : 
+                     latestCheckin.moodScore == 2 ? 'Bad' : 'Awful';
+    final moodColor = latestCheckin.moodScore == 5 ? AppColors.accent : 
+                      latestCheckin.moodScore == 4 ? AppColors.success : 
+                      latestCheckin.moodScore == 3 ? AppColors.textSubtle : 
+                      latestCheckin.moodScore == 2 ? AppColors.warning : AppColors.error;
+
+
+    return Card(
+      elevation: 4,
+      child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            _buildGreeting(context),
-            const SizedBox(height: 20),
-            
-            // Add Check-in Button
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // TODO: Navigate to Daily Check-in screen
-                },
-                icon: const Icon(Icons.add_task),
-                label: const Text('Add Check-in'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-              ),
+          children: [
+            const Text(
+              'Your Latest Check-in Details',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark),
             ),
-            const SizedBox(height: 20),
-            
-            // 3. Weather Card (Passes live/loading data)
-            WeatherCard(weatherData: _weatherData),
-            const SizedBox(height: 20),
-
-            // 4. Action Buttons
-            const Text('What do you want to work on right now?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 10),
-            _buildActionButtons(),
-            const SizedBox(height: 20),
-
-            // 5. Quote Card (Passes live/loading data)
-            QuoteCard(quoteData: _quoteData),
-            const SizedBox(height: 20),
-            
-            // 6. Current Focus/Goal (Mock Data)
-            const Text('Your Current Focus:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 10),
-            _buildFocusCard(context),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Mood: $moodText',
+                  style: TextStyle(fontSize: 16, color: moodColor, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  formattedDate,
+                  style: const TextStyle(fontSize: 14, color: AppColors.textSubtle),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              latestCheckin.notes.isNotEmpty 
+                ? latestCheckin.notes 
+                : 'No notes recorded for this entry.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textSubtle),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // --- Widget Builders ---
-
+  
   Widget _buildGreeting(BuildContext context) {
+    // UPDATED: Dynamic greeting based on latest check-in
+    final String greetingText = _latestCheckin != null
+      ? 'Welcome back, Fernando.'
+      : 'No recent check-ins – how are you feeling today?';
+      
+    final String subtitleText = _latestCheckin != null
+        ? 'Your last check-in was at ${DateFormat('h:mm a, MMM d').format(_latestCheckin!.timestamp)}.'
+        : 'Get started with a quick check-in.';
+      
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Welcome back, Fernando.',
+          greetingText, 
           style: Theme.of(context).textTheme.headlineMedium!.copyWith(
             fontWeight: FontWeight.w800,
             color: AppColors.textDark,
           ),
         ),
-        const Text(
-          'No check-ins yet – how are you feeling today?.',
-          style: TextStyle(color: AppColors.textSubtle),
+        Text(
+          subtitleText, 
+          style: const TextStyle(color: AppColors.textSubtle),
         ),
       ],
     );
@@ -192,220 +433,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
   
+  // MOCK DATA: To be replaced by the Goal Tracking feature next
   Widget _buildFocusCard(BuildContext context) {
-    return Card(
+    return const Card(
       elevation: 2,
       color: AppColors.secondary,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Learn a New Language',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textDark),
             ),
-            const SizedBox(height: 5),
-            const Text(
+            SizedBox(height: 5),
+            Text(
               'Target: 75% complete by December',
               style: TextStyle(color: AppColors.textSubtle),
             ),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              value: 0.75, 
-              backgroundColor: AppColors.primaryColor.withOpacity(0.3),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
-            ),
-            const SizedBox(height: 5),
-            const Text(
-              '75% Complete - 9 months remaining.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSubtle),
-            ),
+            SizedBox(height: 10), 
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ------------------- Placeholder Widgets for API Content -------------------
-
-class WeatherCard extends StatelessWidget {
-  final WeatherModel weatherData;
-  const WeatherCard({super.key, required this.weatherData});
-
-  // Helper to map OpenWeatherMap icons to FontAwesome icons
-  IconData _getWeatherIcon(String iconCode) {
-    if (iconCode.contains('01')) return FontAwesomeIcons.sun; 
-    if (iconCode.contains('02') || iconCode.contains('03')) return FontAwesomeIcons.cloudSun; 
-    if (iconCode.contains('04')) return FontAwesomeIcons.cloud; 
-    if (iconCode.contains('09') || iconCode.contains('10')) return FontAwesomeIcons.cloudShowersHeavy; 
-    if (iconCode.contains('11')) return FontAwesomeIcons.cloudBolt; 
-    if (iconCode.contains('13')) return FontAwesomeIcons.snowflake; 
-    if (iconCode.contains('50')) return FontAwesomeIcons.smog; 
-    return FontAwesomeIcons.cloud; 
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isLoading = weatherData.currentCondition == 'Fetching forecast...';
-    
-    return Card(
-      elevation: 2,
-      color: AppColors.secondary,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // Current Weather (Displays live/loading data)
-            Row(
-              children: <Widget>[
-                FaIcon(
-                  isLoading ? FontAwesomeIcons.spinner : _getWeatherIcon(weatherData.currentIcon), 
-                  color: AppColors.textDark, 
-                  size: 24
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  isLoading
-                      ? weatherData.currentCondition 
-                      : '${weatherData.currentTemp.round()}°C, ${weatherData.currentCondition.replaceFirst(weatherData.currentCondition[0], weatherData.currentCondition[0].toUpperCase())}',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(
-              weatherData.adviceMessage,
-              style: const TextStyle(color: AppColors.textSubtle),
-            ),
-            const Divider(color: AppColors.textSubtle),
-            
-            // 7-Day Forecast (Displays live/loading data)
-            const Text(
-              '7-Day Forecast:',
-              style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark),
-            ),
-            const SizedBox(height: 10),
-            _buildForecastRow(context),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildForecastRow(BuildContext context) {
-    if (weatherData.forecast.isEmpty) {
-      // Show a placeholder or loading indicator if data isn't ready
-      return const Center(
-        child: Text('Loading forecast...', style: TextStyle(color: AppColors.textSubtle))
-      );
-    }
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: weatherData.forecast.map((item) => _buildForecastDay(context, item)).toList(),
-      ),
-    );
-  }
-  
-  Widget _buildForecastDay(BuildContext context, ForecastItem item) {
-    final date = DateTime.fromMillisecondsSinceEpoch(item.timestamp);
-    
-    return Container(
-      width: 70,
-      margin: const EdgeInsets.only(right: 10),
-      child: Column(
-        children: [
-          Text(DateFormat('EEE').format(date), style: const TextStyle(fontWeight: FontWeight.bold)), 
-          Text(DateFormat('dd/MM').format(date), style: const TextStyle(fontSize: 10)),
-          const SizedBox(height: 5),
-          FaIcon(_getWeatherIcon(item.conditionIcon), size: 20, color: AppColors.primaryColor),
-          const SizedBox(height: 5),
-          Text('${item.temp.round()}°C'),
-        ],
-      ),
-    );
-  }
-}
-
-class QuoteCard extends StatelessWidget {
-  final QuoteModel quoteData;
-  const QuoteCard({super.key, required this.quoteData});
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isLoading = quoteData.content == 'Loading quote...';
-
-    return Card(
-      elevation: 2,
-      color: AppColors.secondary,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const Text(
-              'Your Quote for the Day:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textDark),
-            ),
-            const SizedBox(height: 10),
-            
-            // Quote Content
-            Text(
-              quoteData.content, 
-              style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 16),
-            ),
-            const SizedBox(height: 10),
-            
-            // Quote Author
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                isLoading ? quoteData.author : '– ${quoteData.author}',
-                style: const TextStyle(fontWeight: FontWeight.w500, color: AppColors.textSubtle),
-              ),
-            ),
-            
-            // Show loading indicator if fetching
-            if (isLoading)
-              const Padding(
-                padding: EdgeInsets.only(top: 8.0),
-                child: LinearProgressIndicator(color: AppColors.primaryColor),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AppDrawer extends StatelessWidget {
-  const AppDrawer({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          DrawerHeader(
-            decoration: const BoxDecoration(
-              color: AppColors.primaryColor,
-            ),
-            child: Text(
-              'Wellbeing Coach I2.0',
-              style: Theme.of(context).textTheme.headlineMedium!.copyWith(color: Colors.white),
-            ),
-          ),
-          ListTile(leading: const Icon(Icons.group), title: const Text('Community'), onTap: () {}),
-          ListTile(leading: const Icon(Icons.help), title: const Text('Help'), onTap: () {}),
-          ListTile(leading: const Icon(Icons.info), title: const Text('About'), onTap: () {}),
-          const Divider(),
-          ListTile(leading: const Icon(Icons.settings), title: const Text('Settings'), onTap: () {}),
-        ],
       ),
     );
   }

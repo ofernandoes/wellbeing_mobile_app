@@ -1,16 +1,8 @@
 import 'package:flutter/material.dart';
+// NOTE: Assuming AppColors is available via this path
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-// import 'package:wellbeing_mobile_app/main.dart'; // Typically not needed here
 
-// --- NEW IMPORTS FOR FIREBASE INTEGRATION ---
-import 'package:wellbeing_mobile_app/models/wellbeing_entry.dart';
-import 'package:wellbeing_mobile_app/services/firestore_service.dart';
-import 'package:wellbeing_mobile_app/history_screen.dart'; // <--- NEW HISTORY SCREEN IMPORT
-
-// --- SERVICE INSTANCE & GLOBAL STATE ---
-final FirestoreService _firestoreService = FirestoreService();
-
-// --- THEMATIC DATA MODELS FOR SURVEY OPTIONS (KEPT UNCHANGED) ---
+// --- THEMATIC DATA MODELS FOR SURVEY OPTIONS ---
 
 // 1. Mood Check (Horizontal Cards) - FINALIZED
 const List<Map<String, dynamic>> moodOptions = [
@@ -22,6 +14,7 @@ const List<Map<String, dynamic>> moodOptions = [
 ];
 
 // 2. Sleep Log Labels (Custom Selector) - Scale 1-4
+// REVERTED to use EMOJI ICONS
 const List<Map<String, dynamic>> sleepOptions = [
   {'value': 4, 'hours': '+8 Hours', 'status': 'Full Moon', 'detail': 'Dreams achieved, system restored. You’re basically invincible.', 'icon': '🌕'},
   {'value': 3, 'hours': 'Around 8 Hours', 'status': 'Gibbous Moon', 'detail': 'Right in the sweet spot — efficient, balanced, unstoppable.', 'icon': '🌔'},
@@ -31,127 +24,75 @@ const List<Map<String, dynamic>> sleepOptions = [
 
 // 3. Move Report (Gauge Selector) - Scale 1-5
 const List<Map<String, dynamic>> moveOptions = [
-  {'value': 1, 'label': '⏸️ System Standby', 'minutes': 'No movement', 'status': 'Energy conserved, maybe tomorrow.', 'color': Color(0xFFC9CCD3)},
-  {'value': 2, 'label': '🔋 Quick Battery Top-Up', 'minutes': '15-30 Minutes', 'status': 'Quick charge, mission complete.', 'color': Color(0xFFFFCC33)},
-  {'value': 3, 'label': '🟢 Mission Successful', 'minutes': '1 Hour', 'status': 'Steady grind, strong showing.', 'color': Color(0xFF69C07A)},
-  {'value': 4, 'label': '⚡ Full Power Burn', 'minutes': '2 Hours', 'status': 'Locked in, solid work.', 'color': Color(0xFF3399FF)},
-  {'value': 5, 'label': '🚀 Hyperdrive Activated!', 'minutes': '+2 Hours', 'status': 'Beast session, max effort.', 'color': Color(0xFFFF5555)},
+  {'value': 1, 'label': '⏸️ System Standby', 'minutes': 'No movement', 'status': 'Energy conserved, maybe tomorrow.', 'color': Color(0xFFC9CCD3)}, 
+  {'value': 2, 'label': '🔋 Quick Battery Top-Up', 'minutes': '15-30 Minutes', 'status': 'Quick charge, mission complete.', 'color': Color(0xFFFFCC33)}, 
+  {'value': 3, 'label': '🟢 Mission Successful', 'minutes': '1 Hour', 'status': 'Steady grind, strong showing.', 'color': Color(0xFF69C07A)}, 
+  {'value': 4, 'label': '⚡ Full Power Burn', 'minutes': '2 Hours', 'status': 'Locked in, solid work.', 'color': Color(0xFF3399FF)}, 
+  {'value': 5, 'label': '🚀 Hyperdrive Activated!', 'minutes': '+2 Hours', 'status': 'Beast session, max effort.', 'color': Color(0xFFFF5555)}, 
 ];
 // -----------------------------------------------
 
+// (TriangleSliderThumbShape class remains unchanged and is omitted for brevity)
+// (WellbeingEntry class remains unchanged and is omitted for brevity)
 
-// In lib/entry_screen.dart
+class WellbeingEntry {
+  final int mood;
+  final int sleepRating;
+  final int exerciseValue;
+  final int waterGlasses;
+  final String notes;
+
+  WellbeingEntry({
+    required this.mood,
+    required this.sleepRating,
+    required this.exerciseValue,
+    required this.waterGlasses,
+    required this.notes,
+  });
+
+  void save() {
+    print('Entry Saved: Mood $mood, Sleep $sleepRating, Exercise Value $exerciseValue, Water $waterGlasses, Notes: ${notes.isEmpty ? 'N/A' : notes}');
+  }
+}
+
 class DailyCheckinScreen extends StatefulWidget {
   const DailyCheckinScreen({super.key});
+
+  const EntryScreen({super.key});
 
   @override
   State<DailyCheckinScreen> createState() => _DailyCheckinScreenState();
 }
-// ... rest of the file
-
-
 
 class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
   // State variables set to 0 (non-valid choice) to prevent initial highlighting
-  int _selectedMood = 0;
-  int _selectedSleep = 0;
-  int _selectedExercise = 0;
+  int _selectedMood = 0;      
+  int _selectedSleep = 0;     
+  int _selectedExercise = 0;  
   int _waterGlasses = 0;
   final TextEditingController _notesController = TextEditingController();
-
-  // NEW: State for loading/saving process
-  bool _isSaving = false;
 
   @override
   void dispose() {
     _notesController.dispose();
     super.dispose();
   }
-  
-  // Checks if the mandatory fields have been selected (Mood, Sleep, Exercise > 0)
-  bool _isFormValid() {
-    return _selectedMood > 0 && _selectedSleep > 0 && _selectedExercise > 0;
+
+  void _saveEntry() {
+    final entry = WellbeingEntry(
+      mood: _selectedMood,
+      sleepRating: _selectedSleep,
+      exerciseValue: _selectedExercise,
+      waterGlasses: _waterGlasses,
+      notes: _notesController.text,
+    );
+    entry.save();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Wellbeing entry saved!')),
+    );
+    Navigator.pop(context); 
   }
-
-  // --- Firebase Save Logic ---
-  void _saveEntry() async {
-    if (_isSaving) return; // Prevent double-tap
-
-    if (!_isFormValid()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🛑 Please select your Mood, Sleep, and Movement before saving.'),
-          backgroundColor: AppColors.textDark,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-    });
-
-    try {
-      // 1. Get the current authenticated user's ID
-      final userId = _firestoreService.currentUserId; 
-
-      // 2. Check if the user already submitted today
-      final alreadySubmitted = await _firestoreService.hasUserSubmittedToday(userId);
-      if (alreadySubmitted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ You have already submitted your check-in for today.'),
-              backgroundColor: Color(0xFFFFB74D), // Orange for warning
-            ),
-          );
-          setState(() { _isSaving = false; });
-          return;
-      }
-      
-      // 3. Create the WellbeingEntry object using the EXTERNAL model
-      final entry = WellbeingEntry(
-        moodScore: _selectedMood,
-        sleepRating: _selectedSleep,
-        exerciseValue: _selectedExercise,
-        waterGlasses: _waterGlasses,
-        notes: _notesController.text,
-        timestamp: DateTime.now(),
-        userId: userId,
-      );
-
-      // 4. Save the object using the Firestore service
-      await _firestoreService.saveEntry(entry);
-      
-      // Success feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Check-in successfully logged!'),
-          backgroundColor: Color(0xFF81C784), // Green
-        ),
-      );
-      // Optional: Clear fields after successful save
-      // setState(() {
-      //   _selectedMood = 0; _selectedSleep = 0; _selectedExercise = 0; _waterGlasses = 0;
-      //   _notesController.clear();
-      // });
-
-
-    } catch (e) {
-      // Error feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error saving entry: Check console for details.'),
-          backgroundColor: Color(0xFFE57373), // Red
-        ),
-      );
-      debugPrint('Firestore Save Error: $e'); 
-    } finally {
-      setState(() {
-        _isSaving = false;
-      });
-    }
-  }
-  // --- END OF _saveEntry METHOD ---
 
   // --- WIDGET 1: Horizontal Mood Selector (Mood Check) ---
   Widget _buildHorizontalMoodSelector({
@@ -195,7 +136,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
             ),
             const SizedBox(height: 12),
             
-            // ADDED: Status Display 
+            // ADDED: Status Display (for better visual size consistency with other sections)
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Text(
@@ -489,8 +430,17 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                             ),
                           ),
                           const SizedBox(height: 4),
+                          // REMOVED: Bottom Label (Value) - NO LONGER PRINTING NUMBERS 1-5
+                          // Text(
+                          //   '$value',
+                          //   style: TextStyle(
+                          //     fontSize: 10,
+                          //     fontWeight: isActivated ? FontWeight.bold : FontWeight.normal,
+                          //     color: isActivated ? AppColors.textDark : AppColors.textSubtle,
+                          //   ),
+                          // ),
                           // Removed the Text widget, but keep a SizedBox for padding if needed
-                          const SizedBox(height: 10),  
+                          const SizedBox(height: 10), 
                         ],
                       ),
                     ),
@@ -550,8 +500,9 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
       statusMessage = '🚀 Power Surge! Excellent job keeping up with activity.';
       icon = '🌟';
       statusColor = const Color(0xFF64B5F6); // Blue
-    } else {  
-      // This section should technically not be reachable due to the button limit
+    } else { 
+      // This section should technically not be reachable due to the button limit, 
+      // but is kept as a safeguard for manual data entry.
       levelText = 'Max Capacity Reached';
       statusMessage = '🛑 **Limit Reached:** Max safe recommendation recorded.';
       icon = '🛑';
@@ -606,7 +557,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                   text: TextSpan(
                     style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textDark),
                     children: [
-                      TextSpan(text: '$value'),  
+                      TextSpan(text: '$value'), 
                       TextSpan(text: ' $unit', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal, color: AppColors.textSubtle)),
                       TextSpan(text: ' (≈${liters.toStringAsFixed(1)}L)', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal, color: AppColors.textSubtle)),
                     ],
@@ -671,25 +622,12 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
         title: const Text('Daily Check-in'),
         backgroundColor: AppColors.primaryColor,
         foregroundColor: AppColors.background,
-        // --- START OF HISTORY BUTTON ADDITION ---
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history, color: AppColors.background),
-            onPressed: () {
-              // Navigation to the HistoryScreen (Requires import at the top of the file)
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const HistoryScreen()),
-              );
-            },
-          )
-        ],
-        // --- END OF HISTORY BUTTON ADDITION ---
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // 1. Mood Check
+            // 1. Mood Check (Horizontal Cards) - NOW WITH IMPROVED ALIGNMENT AND HEIGHT
             _buildHorizontalMoodSelector(
               title: 'Mood Check: Quick scan — How’s the vibe today?',
               subtitle: 'Select the option that best describes your current energy state.',
@@ -698,13 +636,13 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
               onChanged: (val) => setState(() => _selectedMood = val),
             ),
 
-            // 2. Sleep Log
+            // 2. Sleep Log (Custom Thematic Selector) - REVERTED TO EMOJIS
             _buildThematicSleepSelector(),
 
-            // 3. Move Report
+            // 3. Move Report (Thematic Gauge Selector) - UPDATED TITLE/SUBTITLE & REMOVED NUMBERS
             _buildMoveGaugeSelector(),
             
-            // 4. Glasses of Water Counter
+            // 4. Glasses of Water Counter - NOW WITH DYNAMIC STATUS & LITERS
             _buildCounterInput(
               title: '💧 Hydration: Glasses of Water:',
               unit: 'Glasses',
@@ -712,7 +650,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
               onChanged: (val) => setState(() => _waterGlasses = val),
             ),
 
-            // 5. Notes (Gratitude Prompt)
+            // 5. Notes (Gratitude Prompt) - REPLACED FULL DIARY WITH CONCISE PROMPT
             _buildGratitudeInput(),
 
             const SizedBox(height: 24),
@@ -722,8 +660,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                // UPDATED: Use the new _isSaving flag
-                onPressed: _isSaving ? null : _saveEntry, 
+                onPressed: _saveEntry,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.accent,
                   shape: RoundedRectangleBorder(
@@ -731,16 +668,12 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                   ),
                   elevation: 5,
                 ),
-                // UPDATED: Add a loading indicator check
-                child: _isSaving 
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.textDark))
-                    : const Text(
-                        'Complete Check-in & Earn Energy Badge!',
-                        style: TextStyle(fontSize: 18, color: AppColors.textDark, fontWeight: FontWeight.bold),
-                      ),
+                child: const Text(
+                  'Complete Check-in & Earn Energy Badge!',
+                  style: TextStyle(fontSize: 18, color: AppColors.textDark, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-            
             // Placeholder for Fun Reward Card
             const SizedBox(height: 30),
             const Center(

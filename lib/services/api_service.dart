@@ -3,6 +3,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/weather_model.dart';
+// Note: You may need to import QuoteModel if you have one, 
+// but based on your implementation, it returns a String, so no extra import needed.
 
 class ApiService {
   // 💡 ACTION: Replace the placeholder with your actual OpenWeatherMap API Key.
@@ -10,8 +12,8 @@ class ApiService {
   
   // Note: For a real app, API keys should be secured (e.g., using environment variables).
 
-  // Fetch Weather Data
-  Future<WeatherModel> fetchWeather(String city) async {
+  // Fetch Weather Data - RENAMED TO MATCH home_screen.dart
+  Future<WeatherModel> fetchWeatherData(String city) async {
     final weatherUrl = Uri.parse(
         'https://api.openweathermap.org/data/2.5/weather?q=$city&units=metric&appid=$openWeatherApiKey');
 
@@ -24,8 +26,8 @@ class ApiService {
     }
   }
 
-  // Fetch Inspirational Quote (using a public, simple API)
-  Future<String> fetchQuote() async {
+  // Fetch Inspirational Quote - RENAMED TO MATCH home_screen.dart
+  Future<String> fetchQuoteData() async {
     // Using a public API for simple quote fetching
     final quoteUrl = Uri.parse('https://api.quotable.io/random');
 

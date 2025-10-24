@@ -33,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // State for Check-in History
   DailyCheckin? _latestCheckin;
-  List<DailyCheckin> _checkinHistory = [];
+  // List<DailyCheckin> _checkinHistory = []; // REMOVED: Unused field _checkinHistory
   bool _isLoading = true; 
 
   // State Variables for Summary (Used by _buildMoodSummary)
@@ -61,11 +61,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       if (history.isNotEmpty) {
         _latestCheckin = history.first;
-        _checkinHistory = history;
+        // _checkinHistory = history; // REMOVED: Setting this field as it is unused
 
         // --- Calculate 7-Day Average ---
         final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
         
+        // Note: The 'history' list is used here, but is a local variable, which is fine.
         final recentCheckins = history.where(
           (c) => c.timestamp.isAfter(sevenDaysAgo) && c.timestamp.isBefore(DateTime.now())
         ).toList();
@@ -82,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
         
       } else {
         _latestCheckin = null;
-        _checkinHistory = [];
+        // _checkinHistory = []; // REMOVED: Setting this field as it is unused
         _recentAverageMood = 0.0; 
         _checkinCountLast7Days = 0;
       }
@@ -96,7 +97,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _fetchInitialData() async {
     try {
       final results = await Future.wait([
-        _apiService.fetchWeatherData(),
+        // FIX APPLIED HERE: Added placeholder city argument
+        _apiService.fetchWeatherData('New York'), 
         _apiService.fetchQuoteData(),
       ]);
 
@@ -113,7 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _quoteData = QuoteModel.loading();
         });
       }
-      print("Error fetching initial data: $e");
+      debugPrint("Error fetching initial data: $e");
     }
   }
 

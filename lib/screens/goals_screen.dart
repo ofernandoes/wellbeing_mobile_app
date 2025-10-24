@@ -1,9 +1,12 @@
 // lib/screens/goals_screen.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
 import '../models/goal_model.dart';
-import '../services/goal_service.dart';
-import 'add_edit_goal_screen.dart'; // We will create this next
+// Import service with alias to avoid 'Goal' ambiguity
+import 'package:wellbeing_mobile_app/services/goal_service.dart' as service;
+
+import 'add_edit_goal_screen.dart'; 
 
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key});
@@ -13,7 +16,9 @@ class GoalsScreen extends StatefulWidget {
 }
 
 class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStateMixin {
-  final GoalService _goalService = GoalService();
+  // FIX: Use service alias for GoalService type and constructor
+  final service.GoalService _goalService = service.GoalService();
+  
   List<Goal> _goals = [];
   bool _isLoading = true;
   late TabController _tabController;
@@ -37,6 +42,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
       _isLoading = true;
     });
     
+    // FIX: Call the service using the alias
     final loadedGoals = await _goalService.getGoals();
     
     // Sort active goals first, then by target date
@@ -64,7 +70,8 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
   Future<void> _navigateToAddEditGoal({Goal? goal}) async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => AddEditGoalScreen(goal: goal),
+        // The Goal model passed here is the correct one from the models/ folder
+        builder: (context) => AddEditGoalScreen(goal: goal), 
       ),
     );
     // If the goal was saved (result == true), reload the list
@@ -97,6 +104,7 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
               controller: _tabController,
               children: [
                 _buildGoalList(GoalStatus.active),
+                // Build list for completed, deferred, and abandoned goals
                 _buildGoalList([GoalStatus.completed, GoalStatus.deferred, GoalStatus.abandoned]),
               ],
             ),
@@ -162,7 +170,8 @@ class _GoalsScreenState extends State<GoalsScreen> with SingleTickerProviderStat
       child: ListTile(
         onTap: () => _navigateToAddEditGoal(goal: goal),
         leading: CircleAvatar(
-          backgroundColor: progressColor.withOpacity(0.1),
+          // 🛠️ FIX: Replaced withOpacity with the recommended withAlpha method (Line 173)
+          backgroundColor: progressColor.withAlpha((255 * 0.1).round()), 
           child: Text('${goal.progress}%', style: TextStyle(color: progressColor, fontWeight: FontWeight.bold)),
         ),
         title: Text(

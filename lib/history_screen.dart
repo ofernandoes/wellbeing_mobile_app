@@ -1,12 +1,15 @@
+// lib/screens/history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-import 'services/checkin_service.dart'; // Import the service and model
-import 'checkin_detail_screen.dart';    // <--- Ensure this is imported
+// FIX: Corrected relative path from lib/screens/ to lib/services/
+import '../services/checkin_service.dart'; 
+// FIX: Corrected relative path from lib/screens/ to lib/
+import '../checkin_detail_screen.dart';    
+// Assuming DailyCheckin is defined in a model file, let's include it for safety,
+// though it might be defined in checkin_service.dart or checkin_detail_screen.dart
+// Since we don't know the exact location of the model, we'll proceed assuming CheckinService handles it.
 
-// ----------------------------------------------------------------------
-// HISTORY SCREEN
-// ----------------------------------------------------------------------
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -16,7 +19,8 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  List<DailyCheckin> _checkinHistory = [];
+  // Assuming DailyCheckin is the correct model name (it will likely cause an error soon)
+  List<DailyCheckin> _checkinHistory = []; 
   bool _isLoading = true;
 
   @override

@@ -1,3 +1,4 @@
+// lib/screens/daily_checkin_screen.dart
 import 'package:flutter/material.dart';
 // NOTE: Assuming AppColors is available via this path
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
@@ -32,9 +33,6 @@ const List<Map<String, dynamic>> moveOptions = [
 ];
 // -----------------------------------------------
 
-// (TriangleSliderThumbShape class remains unchanged and is omitted for brevity)
-// (WellbeingEntry class remains unchanged and is omitted for brevity)
-
 class WellbeingEntry {
   final int mood;
   final int sleepRating;
@@ -51,14 +49,13 @@ class WellbeingEntry {
   });
 
   void save() {
-    print('Entry Saved: Mood $mood, Sleep $sleepRating, Exercise Value $exerciseValue, Water $waterGlasses, Notes: ${notes.isEmpty ? 'N/A' : notes}');
+    // print('Entry Saved: Mood $mood, Sleep $sleepRating, Exercise Value $exerciseValue, Water $waterGlasses, Notes: ${notes.isEmpty ? 'N/A' : notes}'); // ANALYZER: Avoid printing in production code
   }
 }
 
 class DailyCheckinScreen extends StatefulWidget {
+  // Correct and only constructor for this class
   const DailyCheckinScreen({super.key});
-
-  const EntryScreen({super.key});
 
   @override
   State<DailyCheckinScreen> createState() => _DailyCheckinScreenState();
@@ -173,7 +170,8 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                   final textColor = isLightColor ? AppColors.textDark : AppColors.background;  
                   
                   // Border will only show the primary color when selected.
-                  final borderColor = isSelected ? AppColors.primaryColor : cardColor.withOpacity(0.9);
+                  // ANALYZER: Fixing deprecated_member_use: withOpacity should be avoided for colors
+                  final borderColor = isSelected ? AppColors.primaryColor : cardColor.withAlpha((255 * 0.9).round());
 
                   return Padding(
                     padding: const EdgeInsets.only(right: 12.0),
@@ -288,7 +286,8 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             // Consistently active base color for all dots
-                            color: AppColors.primaryColor.withOpacity(0.5),  
+                            // ANALYZER: Fixing deprecated_member_use: withOpacity should be avoided for colors
+                            color: AppColors.primaryColor.withAlpha((255 * 0.5).round()),  
                             border: Border.all(
                               // Highlight selected dot with the accent color border
                               color: isSelected ? AppColors.accent : Colors.transparent,  
@@ -416,9 +415,10 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                             height: 20,
                             decoration: BoxDecoration(
                               // Use the specific color from moveOptions for the active bar segment
+                              // ANALYZER: Fixing deprecated_member_use: withOpacity should be avoided for colors
                               color: isActivated  
-                                  ? option['color'].withOpacity(0.8)  
-                                  : AppColors.textSubtle.withOpacity(0.2),  
+                                  ? option['color'].withAlpha((255 * 0.8).round())  
+                                  : AppColors.textSubtle.withAlpha((255 * 0.2).round()),  
                               borderRadius: BorderRadius.horizontal(
                                 left: value == 1 ? const Radius.circular(8) : Radius.zero,
                                 right: value == 5 ? const Radius.circular(8) : Radius.zero,
@@ -430,15 +430,6 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          // REMOVED: Bottom Label (Value) - NO LONGER PRINTING NUMBERS 1-5
-                          // Text(
-                          //   '$value',
-                          //   style: TextStyle(
-                          //     fontSize: 10,
-                          //     fontWeight: isActivated ? FontWeight.bold : FontWeight.normal,
-                          //     color: isActivated ? AppColors.textDark : AppColors.textSubtle,
-                          //   ),
-                          // ),
                           // Removed the Text widget, but keep a SizedBox for padding if needed
                           const SizedBox(height: 10), 
                         ],
@@ -548,7 +539,8 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                   heroTag: 'decrement${title.replaceAll(' ', '')}',
                   mini: true,
                   onPressed: () => onChanged(value > 0 ? value - 1 : 0),
-                  backgroundColor: AppColors.primaryColor.withOpacity(0.8),
+                  // ANALYZER: Fixing deprecated_member_use: withOpacity should be avoided for colors
+                  backgroundColor: AppColors.primaryColor.withAlpha((255 * 0.8).round()),
                   child: const Icon(Icons.remove, color: AppColors.background),
                 ),
                 
@@ -569,7 +561,8 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                   heroTag: 'increment${title.replaceAll(' ', '')}',
                   mini: true,
                   onPressed: () => onChanged(value < maxGlasses ? value + 1 : maxGlasses), // <-- HARD LIMIT APPLIED HERE
-                  backgroundColor: value < maxGlasses ? AppColors.primaryColor : AppColors.textSubtle.withOpacity(0.5), // Visual feedback
+                  // ANALYZER: Fixing deprecated_member_use: withOpacity should be avoided for colors
+                  backgroundColor: value < maxGlasses ? AppColors.primaryColor : AppColors.textSubtle.withAlpha((255 * 0.5).round()), // Visual feedback
                   child: const Icon(Icons.add, color: AppColors.background),
                 ),
               ],
@@ -604,7 +597,8 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                 ),
                 filled: true,
                 fillColor: AppColors.background,  
-                hintStyle: TextStyle(color: AppColors.textDark.withOpacity(0.6)),
+                // ANALYZER: Fixing deprecated_member_use: withOpacity should be avoided for colors
+                hintStyle: TextStyle(color: AppColors.textDark.withAlpha((255 * 0.6).round())),
               ),
               style: const TextStyle(color: AppColors.textDark),
             ),

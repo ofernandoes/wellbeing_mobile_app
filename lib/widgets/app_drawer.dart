@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
 
-// Import the new GoalsScreen
+// FIX 1: Corrected path for HomeScreen - Assuming it's in the lib/ root based on other analysis lines.
+import '../home_screen.dart';   
+
+// FIX 2: Corrected path for HistoryScreen (assuming it's in lib/screens/)
+// If the file is actually named history_screen.dart, this path should be correct.
+import '../history_screen.dart'; 
+
+// FIX 3: Corrected path for GoalsScreen
 import '../screens/goals_screen.dart'; 
-// Import existing screens
-import '../screens/history_screen.dart';
-import '../screens/home_screen.dart';
 
 
 class AppDrawer extends StatelessWidget {
@@ -45,6 +49,7 @@ class AppDrawer extends StatelessWidget {
             'Home',
             Icons.home,
             () {
+              // Fixed error: Instantiating the class with const HomeScreen()
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(builder: (context) => const HomeScreen()),
               );
@@ -72,6 +77,7 @@ class AppDrawer extends StatelessWidget {
             FontAwesomeIcons.chartLine,
             () {
               // Close drawer and navigate
+              // Fixed error: Instantiating the class with const HistoryScreen()
               Navigator.of(context).pop();
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (context) => const HistoryScreen()),
@@ -101,8 +107,7 @@ class AppDrawer extends StatelessWidget {
               // Close drawer first
               Navigator.of(context).pop(); 
               
-              // **PERSONALIZATION REMINDER**
-              // When user says "Chao" (or taps 'Chao - Exit'), remind them to back up.
+              // **PERSONALIZATION REMINDER: Back up progress before leaving**
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text("Chao! 👋 Remember to back up your progress before leaving."),

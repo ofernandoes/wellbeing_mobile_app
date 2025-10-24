@@ -1,68 +1,48 @@
 // lib/models/weather_model.dart
-
 class WeatherModel {
-  final double currentTemp;
-  final String currentCondition;
-  final String currentIcon; // OpenWeatherMap icon code (e.g., '01d' for sun)
-  final String adviceMessage;
-  final List<ForecastItem> forecast;
+  final bool isLoading;
+  final String city;
+  final double temperature;
+  final String description;
   final bool isError;
 
   WeatherModel({
-    required this.currentTemp,
-    required this.currentCondition,
-    required this.currentIcon,
-    required this.adviceMessage,
-    required this.forecast,
+    required this.isLoading,
+    required this.city,
+    required this.temperature,
+    required this.description,
     this.isError = false,
   });
 
-  // Factory constructor to handle the complex JSON response from OpenWeatherMap
-  factory WeatherModel.fromJson(Map<String, dynamic> json) {
-    // Extract current data from the first item in the 'list' (it's a 5-day/3-hour forecast)
-    final current = json['list'][0];
-    
-    // Build the daily forecast list by sampling every 8th item (8 * 3 hours = 24 hours)
-    final List<ForecastItem> weeklyForecast = [];
-    for (int i = 0; i < json['list'].length && weeklyForecast.length < 7; i += 8) {
-      final dayData = json['list'][i];
-      weeklyForecast.add(ForecastItem(
-        timestamp: dayData['dt'] * 1000,
-        temp: dayData['main']['temp'].toDouble(),
-        conditionIcon: dayData['weather'][0]['icon'],
-      ));
-    }
-
-    return WeatherModel(
-      currentTemp: current['main']['temp'].toDouble(),
-      currentCondition: current['weather'][0]['description'],
-      currentIcon: current['weather'][0]['icon'],
-      adviceMessage: 'Weather looks good for an outdoor activity today!', // Placeholder advice
-      forecast: weeklyForecast,
-    );
-  }
-  
-  // Model for the loading/error state
+  // Constructor for the loading state (used by the widget)
   static WeatherModel loading() {
     return WeatherModel(
-      currentTemp: 0.0,
-      currentCondition: 'Fetching forecast...',
-      currentIcon: '50d', // Default cloudy icon
-      adviceMessage: 'Loading wellbeing advice...',
-      forecast: [],
+      isLoading: true,
+      city: '...',
+      temperature: 0.0,
+      description: 'Fetching data',
+    );
+  }
+
+  // Factory constructor to parse data from a JSON map (typical API response)
+  factory WeatherModel.fromJson(Map<String, dynamic> json) {
+    return WeatherModel(
+      isLoading: false,
+      city: json['name'] ?? 'Unknown City', // Assuming 'name' is the city field in the API
+      temperature: (json['main']['temp'] as num).toDouble(), // Assuming structure has main.temp
+      description: json['weather'][0]['description'] ?? 'n/a', // Assuming structure has weather[0].description
       isError: false,
     );
   }
-}
-
-class ForecastItem {
-  final int timestamp;
-  final double temp;
-  final String conditionIcon;
-
-  ForecastItem({
-    required this.timestamp,
-    required this.temp,
-    required this.conditionIcon,
-  });
+  
+  // Constructor for the error state
+  static WeatherModel error(String message) {
+    return WeatherModel(
+      isLoading: false,
+      city: 'Error',
+      temperature: 0.0,
+      description: message,
+      isError: true,
+    );
+  }
 }

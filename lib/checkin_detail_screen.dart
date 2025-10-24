@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-import 'services/checkin_service.dart'; // To get the DailyCheckin model
-import 'daily_checkin_screen.dart';     // <--- Added/Ensured for navigation to edit screen
+import '../services/checkin_service.dart'; // Corrected
+
+// ADD THIS LINE:
+import 'daily_checkin_screen.dart'; // Assumes the file is at the same level (lib/)
 
 // ----------------------------------------------------------------------
 // CHECKIN DETAIL SCREEN
@@ -42,8 +44,9 @@ class CheckinDetailScreen extends StatelessWidget {
     }
   }
 
-  // --- UPDATED NAVIGATION LOGIC ---
+  // --- UPDATED NAVIGATION LOGIC (Fix applied here) ---
   void _editCheckin(BuildContext context) async {
+    // Line 63 (approx)
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => DailyCheckinScreen(
@@ -52,13 +55,16 @@ class CheckinDetailScreen extends StatelessWidget {
       ),
     );
 
+    // Check if the widget is still in the tree after the async operation
+    if (!context.mounted) return; // FIX: Prevents using context across the async gap
+
     // If the check-in was successfully updated (DailyCheckinScreen returns 'true')
     if (result == true) {
       // 1. Call the callback function provided by the HistoryScreen to reload its data.
       onCheckinUpdated();
       
       // 2. Pop the detail screen to automatically show the updated list in the HistoryScreen.
-      // The user can then re-tap the entry to see the latest details if they wish.
+      // Line 71 (approx)
       Navigator.of(context).pop(); 
     }
   }

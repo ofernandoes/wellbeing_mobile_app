@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import 'package:flutter/foundation.dart';
+
 class WellbeingApiService {
   // CRITICAL: Set to Android Emulator alias (10.0.2.2) to reach Flask server running on host.
 
@@ -33,14 +35,14 @@ final String _baseUrl = 'http://localhost:5000/api/log_entry';
 
       // 3. Check for successful creation status (201 Created)
       if (response.statusCode == 201) {
-        print('Entry logged successfully to Flask: ${response.body}');
+        debugPrint('Entry logged successfully to Flask: ${response.body}');
         return true;
       } else {
-        print('Failed to log entry. Status: ${response.statusCode}, Body: ${response.body}');
+        debugPrint('Failed to log entry. Status: ${response.statusCode}, Body: ${response.body}');
         return false;
       }
     } catch (e) {
-      print('Network or serialization error: $e');
+      debugPrint('Network or serialization error: $e');
       return false;
     }
   }

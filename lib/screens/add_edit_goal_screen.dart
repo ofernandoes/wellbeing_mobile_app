@@ -1,12 +1,17 @@
 // lib/screens/add_edit_goal_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart'; // Required for generating unique IDs for new goals
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
 import '../models/goal_model.dart';
-import '../services/goal_service.dart';
+// FIX: Using alias 'as service' to resolve ambiguity
+import '../services/goal_service.dart' as service; 
+
+const uuid = Uuid(); // Instantiate Uuid generator
 
 class AddEditGoalScreen extends StatefulWidget {
-  final Goal? goal; // Null for adding a new goal, non-null for editing
+  // Use the Goal model from the models folder
+  final Goal? goal; 
 
   const AddEditGoalScreen({super.key, this.goal});
 
@@ -16,7 +21,8 @@ class AddEditGoalScreen extends StatefulWidget {
 
 class _AddEditGoalScreenState extends State<AddEditGoalScreen> {
   final _formKey = GlobalKey<FormState>();
-  final GoalService _goalService = GoalService();
+  // FIX: Use service alias for GoalService type and constructor
+  final service.GoalService _goalService = service.GoalService();
   
   // State variables for goal fields
   late String _title;
@@ -55,19 +61,29 @@ class _AddEditGoalScreenState extends State<AddEditGoalScreen> {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       
+      // Determine ID: use existing or generate new one
+      final String goalId = widget.goal?.id ?? uuid.v4(); 
+      // Determine Category: a placeholder, as the screen doesn't have a selector
+      final String goalCategory = widget.goal?.category ?? 'General';
+      
       final Goal newGoal = Goal(
-        id: widget.goal?.id, // Preserve ID if editing
+        id: goalId, 
         title: _title,
         description: _description,
         startDate: _startDate,
         targetDate: _targetDate,
         progress: _progress,
         status: _status,
+        // Since isCompleted and targetValue are needed for the model but not directly set here, 
+        // we'll default them or inherit from the old goal.
+        isCompleted: _progress == 100,
+        category: goalCategory,
+        targetValue: widget.goal?.targetValue ?? 1, // Placeholder
       );
 
+      // FIX: Call the service using the alias
       await _goalService.saveGoal(newGoal);
       
-      // Navigate back and pass 'true' to indicate a successful save/update
       if (mounted) {
         Navigator.pop(context, true); 
       }
@@ -97,9 +113,9 @@ class _AddEditGoalScreenState extends State<AddEditGoalScreen> {
     );
 
     if (confirm == true) {
+      // FIX: Call the service using the alias
       await _goalService.deleteGoal(widget.goal!.id);
       
-      // Navigate back and pass 'true' (successful deletion also triggers reload)
       if (mounted) {
         Navigator.pop(context, true); 
       }

@@ -74,9 +74,9 @@ class StatsChart extends StatelessWidget {
                   titlesData: FlTitlesData(
                     show: true,
                     // FIX: Removed 'const' keyword here
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)), 
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), 
                     // FIX: Removed 'const' keyword here
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)), 
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), 
                     
                     // Bottom Titles (X-axis labels)
                     bottomTitles: AxisTitles(
@@ -119,11 +119,13 @@ class StatsChart extends StatelessWidget {
                     drawHorizontalLine: true,
                     drawVerticalLine: true,
                     getDrawingVerticalLine: (value) => FlLine(
-                      color: Colors.grey.withOpacity(0.1),
+                      // 🛠️ FIX 1 of 3: withOpacity replaced (Line 122)
+                      color: Colors.grey.withAlpha((255 * 0.1).round()),
                       strokeWidth: 1,
                     ),
                     getDrawingHorizontalLine: (value) => FlLine(
-                      color: Colors.grey.withOpacity(0.1),
+                      // 🛠️ FIX 2 of 3: withOpacity replaced (Line 126)
+                      color: Colors.grey.withAlpha((255 * 0.1).round()),
                       strokeWidth: 1,
                     ),
                   ),
@@ -153,7 +155,8 @@ class StatsChart extends StatelessWidget {
                       ),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: chartColor.withOpacity(0.2), // Light fill below the line
+                        // 🛠️ FIX 3 of 3: withOpacity replaced (Line 156)
+                        color: chartColor.withAlpha((255 * 0.2).round()), // Light fill below the line
                       ),
                     ),
                   ],
@@ -178,14 +181,15 @@ class StatsChart extends StatelessWidget {
 
 // Extension to darken color for dots
 extension ColorExtension on Color {
+  // 🛠️ FIXES 4-7: Replaced deprecated alpha, red, green, blue with modern accessors (.a, .r, .g, .b)
   Color darken([int percent = 10]) {
     assert(1 <= percent && percent <= 100);
     final f = 1 - percent / 100;
     return Color.fromARGB(
-      alpha,
-      (red * f).round(),
-      (green * f).round(),
-      (blue * f).round(),
+      (a * 255.0).round() & 0xff,
+      (r * f * 255.0).round() & 0xff,
+      (g * f * 255.0).round() & 0xff,
+      (b * f * 255.0).round() & 0xff,
     );
   }
 }

@@ -1,6 +1,8 @@
+// lib/daily_checkin_screen.dart
 import 'package:flutter/material.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-import 'services/checkin_service.dart';
+// NOTE: Assuming this service import is correct for the DailyCheckin model and service implementation
+import '../services/checkin_service.dart';
 
 // ----------------------------------------------------------------------
 // DAILY CHECK-IN SCREEN (Now also used for EDITING)
@@ -10,6 +12,7 @@ class DailyCheckinScreen extends StatefulWidget {
   // Optional parameter for editing an existing check-in
   final DailyCheckin? checkinToEdit;
 
+  // CONSTRUCTOR IS CORRECT: Uses the class name DailyCheckinScreen
   const DailyCheckinScreen({
     super.key,
     this.checkinToEdit, // Null if creating new, present if editing
@@ -45,9 +48,9 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       final service = CheckinService();
-      
+
       String successMessage;
-      
+
       if (widget.checkinToEdit == null) {
         // --- NEW CHECK-IN (CREATE) ---
         final newCheckin = DailyCheckin(
@@ -63,7 +66,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
         final updatedCheckin = DailyCheckin(
           id: widget.checkinToEdit!.id,
           // Keep the original timestamp for historical accuracy
-          timestamp: widget.checkinToEdit!.timestamp, 
+          timestamp: widget.checkinToEdit!.timestamp,
           moodScore: _selectedMoodScore,
           notes: _notesController.text.trim(),
         );
@@ -110,7 +113,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              
+
               // 1. Mood Selection
               Text(
                 '1. How are you feeling right now?',
@@ -120,7 +123,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Mood Slider/Selector
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -137,17 +140,18 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                         Icon(
                           _getMoodIcon(score),
                           size: 48,
-                          color: _selectedMoodScore == score 
-                              ? AppColors.accent 
-                              : AppColors.textSubtle.withOpacity(0.5),
+                          color: _selectedMoodScore == score
+                              ? AppColors.accent
+                              // ✨ CORRECTED DEPRECATION HERE (Line 146)
+                              : AppColors.textSubtle.withAlpha((255 * 0.5).round()),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           '$score',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: _selectedMoodScore == score 
-                                ? AppColors.accent 
+                            color: _selectedMoodScore == score
+                                ? AppColors.accent
                                 : AppColors.textSubtle,
                           ),
                         ),

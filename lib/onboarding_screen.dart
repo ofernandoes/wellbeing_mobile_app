@@ -10,6 +10,10 @@ class OnboardingScreen extends StatelessWidget {
     await prefs.setString('userName', 'Fernando'); 
     await prefs.setBool('onboarding_complete', true);
     
+    // Check if the widget is still mounted before using the context for navigation
+    // FIX: Add mounted check here to resolve 'use_build_context_synchronously' warning.
+    if (!context.mounted) return;
+    
     // Navigate and replace the current screen with the main app structure
     Navigator.of(context).pushReplacementNamed('/'); 
   }

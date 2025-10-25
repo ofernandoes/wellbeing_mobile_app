@@ -1,9 +1,6 @@
-// lib/entry_screen.dart:
 import 'package:flutter/material.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
 // import 'package:wellbeing_mobile_app/main.dart'; // Typically not needed here
-
-
 
 
 // --- NEW IMPORTS FOR FIREBASE INTEGRATION ---
@@ -12,29 +9,24 @@ import 'package:wellbeing_mobile_app/services/firestore_service.dart';
 import 'package:wellbeing_mobile_app/history_screen.dart'; // <--- NEW HISTORY SCREEN IMPORT
 
 
-
-
 // --- SERVICE INSTANCE & GLOBAL STATE ---
 final FirestoreService _firestoreService = FirestoreService();
 
 
-
-
-// --- THEMATIC DATA MODELS FOR SURVEY OPTIONS (KEPT UNCHANGED) ---
-
-
+// --- THEMATIC DATA MODELS FOR SURVEY OPTIONS ---
 
 
 // 1. Mood Check (Horizontal Cards) - FINALIZED
 const List<Map<String, dynamic>> moodOptions = [
-{'value': 1, 'label': 'Disaster Mode', 'subtitle': 'Rough day, but still standing.', 'color': Color(0xFFE57373), 'icon': '🚨'}, // Red
-{'value': 2, 'label': 'Low Battery', 'subtitle': 'Energy’s low; but still online.', 'color': Color(0xFFFFB74D), 'icon': '🔋'}, // Orange
-{'value': 3, 'label': 'Cruise Control', 'subtitle': 'Keeping pace, autopilot engaged.', 'color': Color(0xFFFFEB3B), 'icon': '🚗'}, // Yellow
-{'value': 4, 'label': 'Feeling Solid', 'subtitle': 'Focused and calm; just executing.', 'color': Color(0xFF64B5F6), 'icon': '👍'}, // Blue
-{'value': 5, 'label': 'Absolutely Stellar', 'subtitle': 'Running on pure momentum, everything’s clicking.', 'color': Color(0xFF81C784), 'icon': '✨'}, // Green
+  // NEW: Score 0 added as the default/unselected state
+  {'value': 0, 'label': 'Awaiting Input', 'subtitle': 'Tap a pill below to begin your check-in.', 'color': AppColors.textSubtle, 'icon': '🤔'}, 
+  // User-selectable options
+  {'value': 1, 'label': 'Disaster Mode', 'subtitle': 'Rough day, but still standing.', 'color': Color(0xFFE57373), 'icon': '🚨'}, // Red
+  {'value': 2, 'label': 'Low Battery', 'subtitle': 'Energy’s low; but still online.', 'color': Color(0xFFFFB74D), 'icon': '🔋'}, // Orange
+  {'value': 3, 'label': 'Cruise Control', 'subtitle': 'Keeping pace, autopilot engaged.', 'color': Color(0xFFFFEB3B), 'icon': '🚗'}, // Yellow
+  {'value': 4, 'label': 'Feeling Solid', 'subtitle': 'Focused and calm; just executing.', 'color': Color(0xFF64B5F6), 'icon': '👍'}, // Blue
+  {'value': 5, 'label': 'Absolutely Stellar', 'subtitle': 'Running on pure momentum, everything’s clicking.', 'color': Color(0xFF81C784), 'icon': '✨'}, // Green
 ];
-
-
 
 
 // 2. Sleep Log Labels (Custom Selector) - Scale 1-4
@@ -44,8 +36,6 @@ const List<Map<String, dynamic>> sleepOptions = [
 {'value': 2, 'hours': '4–6 Hours', 'status': 'Crescent Moon', 'detail': 'You’re awake, technically. Functionality may vary.', 'icon': '🌒'},
 {'value': 1, 'hours': 'Under 4 Hours', 'status': 'New Moon', 'detail': 'Reality’s blurry, time isn’t real, and your bed misses you.', 'icon': '🌑'},
 ];
-
-
 
 
 // 3. Move Report (Gauge Selector) - Scale 1-5
@@ -59,33 +49,15 @@ const List<Map<String, dynamic>> moveOptions = [
 // -----------------------------------------------
 
 
-
-
-
-
-
-
 // In lib/entry_screen.dart
 class DailyCheckinScreen extends StatefulWidget {
 const DailyCheckinScreen({super.key});
-
-
 
 
 @override
 State<DailyCheckinScreen> createState() => _DailyCheckinScreenState();
 }
 // ... rest of the file
-
-
-
-
-
-
-
-
-
-
 
 
 class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
@@ -97,12 +69,8 @@ int _waterGlasses = 0;
 final TextEditingController _notesController = TextEditingController();
 
 
-
-
 // NEW: State for loading/saving process
 bool _isSaving = false;
-
-
 
 
 @override
@@ -116,13 +84,9 @@ bool _isFormValid() {
 }
 
 
-
-
 // --- Firebase Save Logic (FIXED: Added mounted checks after await) ---
 void _saveEntry() async {
   if (_isSaving) return; // Prevent double-tap
-
-
 
 
   if (!_isFormValid()) {
@@ -137,20 +101,14 @@ void _saveEntry() async {
   }
 
 
-
-
   setState(() {
     _isSaving = true;
   });
 
 
-
-
   try {
     // 1. Get the current authenticated user's ID
     final userId = _firestoreService.currentUserId;
-
-
 
 
     // 2. Check if the user already submitted today
@@ -183,8 +141,6 @@ void _saveEntry() async {
     );
 
 
-
-
     // 4. Save the object using the Firestore service
     await _firestoreService.saveEntry(entry);
   
@@ -204,8 +160,6 @@ void _saveEntry() async {
     //   _selectedMood = 0; _selectedSleep = 0; _selectedExercise = 0; _waterGlasses = 0;
     //   _notesController.clear();
     // });
-
-
 
 
   } catch (e) {
@@ -228,8 +182,6 @@ void _saveEntry() async {
 // --- END OF _saveEntry METHOD ---
 
 
-
-
 // --- WIDGET 1: Horizontal Mood Selector (Mood Check) ---
 Widget _buildHorizontalMoodSelector({
   required String title,
@@ -238,22 +190,17 @@ Widget _buildHorizontalMoodSelector({
   required List<Map<String, dynamic>> options,
   required ValueChanged<int> onChanged,
 }) {
-  final bool isAnySelected = selectedValue > 0;
-   final Map<String, dynamic>? selectedOption = options.cast<Map<String, dynamic>?>().firstWhere(
+  
+  // *** SIMPLIFIED LOOKUP thanks to the new moodOptions[0] entry ***
+  final Map<String, dynamic> selectedOption = options.cast<Map<String, dynamic>?>().firstWhere(
     (opt) => opt?['value'] == selectedValue,
-    orElse: () => null,
-  );
-   // Default text/icon when nothing is selected
-  final String statusLabel = isAnySelected ? selectedOption!['label'] as String : 'No mood selected';
-  final String statusSubtitle = isAnySelected ? selectedOption!['subtitle'] as String : 'Tap a pill below to register your energy level.';
-  final String statusIcon = isAnySelected ? selectedOption!['icon'] as String : '🤔';
-  final Color statusColor = isAnySelected ? selectedOption!['color'] as Color : AppColors.textSubtle;
-
-
-
-
-
-
+    orElse: () => options.first, // Safely defaults to the 'Awaiting Input' (score 0)
+  )!;
+   
+  final String statusLabel = selectedOption['label'] as String;
+  final String statusSubtitle = selectedOption['subtitle'] as String;
+  final String statusIcon = selectedOption['icon'] as String;
+  final Color statusColor = selectedOption['color'] as Color;
 
 
   return Card(
@@ -265,30 +212,30 @@ Widget _buildHorizontalMoodSelector({
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            title,
+          const Text( // Made const (Title is static)
+            'Mood Check: Quick scan — How’s the vibe today?',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark),
           ),
           const SizedBox(height: 4),
-          const Text(
-            subtitle,
+          const Text( // Made const (Subtitle is static)
+            'Select the option that best describes your current energy state.',
             style: TextStyle(fontSize: 14, color: AppColors.textSubtle),
           ),
           const SizedBox(height: 12),
         
           // ADDED: Status Display
-          ListTile(
+          ListTile( // <-- MUST NOT BE CONST
             contentPadding: EdgeInsets.zero,
             leading: Text(
                 statusIcon,
                 style: TextStyle(fontSize: 32, color: statusColor),
               ),
-            // 🛑 FINAL CRITICAL FIX: The 'const' keyword is removed here
-            title: Text(
+            // FIX LINE 217: const removed here
+            title: Text( 
               'Status: $statusLabel',
-              style: TextStyle(fontWeight: FontWeight.bold, color: isAnySelected ? AppColors.primaryColor : AppColors.textSubtle),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryColor),
             ),
-            // 🛑 FINAL CRITICAL FIX: The 'const' keyword is removed here
+            // FIX LINE 222: const removed here
             subtitle: Text(
               statusSubtitle,
               style: const TextStyle(color: AppColors.textSubtle),
@@ -297,15 +244,14 @@ Widget _buildHorizontalMoodSelector({
           const SizedBox(height: 12),
 
 
-
-
           // Horizontal Scrolling Area
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               // ALIGNMENT FIX RE-APPLIED: Forces content to align left
               mainAxisAlignment: MainAxisAlignment.start,
-              children: options.map((option) {
+              // SKIPS the 0 option for the tapable pills
+              children: options.where((option) => option['value']! > 0).map((option) {
                 final isSelected = option['value'] == selectedValue;
               
                 final Color selectedPillColor = option['color'] as Color;
@@ -322,10 +268,8 @@ Widget _buildHorizontalMoodSelector({
                 final borderColor = isSelected ? AppColors.primaryColor : cardColor.withAlpha((255 * 0.9).round());
 
 
-
-
                 return Padding(
-                  // FIX: Removed const from EdgeInsets.only to prevent error (Line 245 in previous analysis)
+                  // FIX: This was causing an error if const was applied. Kept as const now that `TextStyles` are fixed.
                   padding: const EdgeInsets.only(right: 12.0),
                   child: GestureDetector(
                     onTap: () => onChanged(option['value'] as int),
@@ -380,8 +324,6 @@ Widget _buildThematicSleepSelector() {
    final displayOptions = List.from(sleepOptions.reversed);
 
 
-
-
   return Card(
     elevation: 0,
     color: AppColors.secondary,
@@ -422,8 +364,6 @@ Widget _buildThematicSleepSelector() {
             ),
           ),
           const SizedBox(height: 12),
-
-
 
 
           // Custom Selector Track
@@ -488,13 +428,9 @@ Widget _buildThematicSleepSelector() {
 }
 
 
-
-
 // --- WIDGET 3: Move Report Gauge Selector (Thematic Power Bar) ---
 Widget _buildMoveGaugeSelector() {
   final int selectedValue = _selectedExercise;
-
-
 
 
   final selectedOption = moveOptions.cast<Map<String, dynamic>?>().firstWhere(
@@ -548,8 +484,6 @@ Widget _buildMoveGaugeSelector() {
             ),
           ),
           const SizedBox(height: 12),
-
-
 
 
           // The Horizontal Gauge Control (Red Active Bar)
@@ -614,8 +548,6 @@ Widget _buildMoveGaugeSelector() {
 }
 
 
-
-
 // --- WIDGET 4: Water Counter with Dynamic Status and Liter Conversion (FIXED LIMIT) ---
 Widget _buildCounterInput({
   required String title,
@@ -632,8 +564,6 @@ Widget _buildCounterInput({
   String statusMessage;
   String icon;
   Color statusColor;
-
-
 
 
   if (value == 0) {
@@ -671,8 +601,6 @@ Widget _buildCounterInput({
   }
 
 
-
-
   return Card(
     elevation: 0,
     color: AppColors.secondary,
@@ -682,9 +610,10 @@ Widget _buildCounterInput({
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // FIX: Replaced invalid 'Title : ...' line with the correct Text widget using the 'title' argument
           Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark)),
           const SizedBox(height: 8),
-        
+          
           // --- NEW: Dynamic Status Display ---
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -692,7 +621,8 @@ Widget _buildCounterInput({
               icon,
               style: TextStyle(fontSize: 32, color: statusColor),
             ),
-            title: Text( // Removed const here (Line 615) - Not strictly needed, but kept as Text is constant here
+            // FIX: const was removed here (line 613/614 previously)
+            title: Text( 
               'Level: $levelText',
               style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryColor),
             ),
@@ -748,8 +678,6 @@ Widget _buildCounterInput({
 }
 
 
-
-
 // NEW: Concise Gratitude Prompt to replace the full Diary widget
 Widget _buildGratitudeInput() {
   return Card(
@@ -785,8 +713,6 @@ Widget _buildGratitudeInput() {
     ),
   );
 }
-
-
 
 
 @override
@@ -825,12 +751,8 @@ Widget build(BuildContext context) {
           ),
 
 
-
-
           // 2. Sleep Log
           _buildThematicSleepSelector(),
-
-
 
 
           // 3. Move Report
@@ -845,17 +767,11 @@ Widget build(BuildContext context) {
           ),
 
 
-
-
           // 5. Notes (Gratitude Prompt)
           _buildGratitudeInput(),
 
 
-
-
           const SizedBox(height: 24),
-
-
 
 
           // Save Button
@@ -883,8 +799,6 @@ Widget build(BuildContext context) {
           ),
 
 
-
-
           const SizedBox(height: 40),
         ],
       ),
@@ -892,4 +806,3 @@ Widget build(BuildContext context) {
   );
 }
 }
-

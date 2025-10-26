@@ -1,7 +1,7 @@
 // lib/daily_checkin_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-// NOTE: Assuming this service import is correct for the DailyCheckin model and service implementation
 import '../services/checkin_service.dart';
 
 // ----------------------------------------------------------------------
@@ -12,7 +12,6 @@ class DailyCheckinScreen extends StatefulWidget {
   // Optional parameter for editing an existing check-in
   final DailyCheckin? checkinToEdit;
 
-  // CONSTRUCTOR IS CORRECT: Uses the class name DailyCheckinScreen
   const DailyCheckinScreen({
     super.key,
     this.checkinToEdit, // Null if creating new, present if editing
@@ -54,13 +53,15 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
       if (widget.checkinToEdit == null) {
         // --- NEW CHECK-IN (CREATE) ---
         final newCheckin = DailyCheckin(
-          id: DateTime.now().millisecondsSinceEpoch.toString(), // Simple unique ID
+          // CRITICAL FIX: Firestore generates the ID, so we use a temporary placeholder 'new'
+          // The CheckinService knows to ignore this ID when calling .add()
+          id: 'new', 
           timestamp: DateTime.now(),
           moodScore: _selectedMoodScore,
           notes: _notesController.text.trim(),
         );
         await service.saveCheckin(newCheckin);
-        successMessage = 'Mood check-in saved!';
+        successMessage = 'Mood check-in saved to Cloud Firestore!';
       } else {
         // --- EXISTING CHECK-IN (UPDATE) ---
         final updatedCheckin = DailyCheckin(
@@ -142,7 +143,6 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
                           size: 48,
                           color: _selectedMoodScore == score
                               ? AppColors.accent
-                              // ✨ CORRECTED DEPRECATION HERE (Line 146)
                               : AppColors.textSubtle.withAlpha((255 * 0.5).round()),
                         ),
                         const SizedBox(height: 4),

@@ -3,17 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
 // NOTE: Assuming these are your existing model/service imports.
-import 'package:wellbeing_mobile_app/services/api_service.dart'; 
+import 'package:wellbeing_mobile_app/services/api_service.dart';
 import 'package:wellbeing_mobile_app/models/weather_model.dart';
 import 'package:wellbeing_mobile_app/models/quote_model.dart';
 
-// Check-in Imports (Adjusted path assumption based on typical Flutter project structure)
-import '../services/checkin_service.dart'; 
-import 'daily_checkin_screen.dart';     
+// Check-in Imports
+import '../services/checkin_service.dart'; // Must be the Firestore version
+import 'daily_checkin_screen.dart';
 import 'history_screen.dart'; 
-import '../widgets/app_drawer.dart'; // Assuming AppDrawer is in widgets folder
-import '../widgets/weather_card.dart'; // Assuming WeatherCard is in widgets folder
-import '../widgets/quote_card.dart'; // Assuming QuoteCard is in widgets folder
+import '../widgets/app_drawer.dart'; 
+import '../widgets/weather_card.dart'; 
+import '../widgets/quote_card.dart'; 
 
 
 // ------------------- HomeScreen -------------------
@@ -30,16 +30,10 @@ class _HomeScreenState extends State<HomeScreen> {
   late WeatherModel _weatherData;
   late QuoteModel _quoteData;
   final ApiService _apiService = ApiService();
-
-  // State for Check-in History
-  DailyCheckin? _latestCheckin;
-  // List<DailyCheckin> _checkinHistory = []; // REMOVED: Unused field _checkinHistory
-  bool _isLoading = true; 
-
-  // State Variables for Summary (Used by _buildMoodSummary)
-  double _recentAverageMood = 0.0;
-  int _checkinCountLast7Days = 0; 
-
+  
+  // 2. Initialize CheckinService for the StreamBuilder
+  final CheckinService _checkinService = CheckinService();
+  bool _isApiLoading = true; // Separate loading state for API data
 
   @override
   void initState() {
@@ -48,56 +42,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _quoteData = QuoteModel.loading();
     
     _fetchInitialData();
-    _loadCheckinData();
   }
 
-  // UPDATED: Function to load the latest check-in and calculate the 7-day average
-  Future<void> _loadCheckinData() async {
-    final service = CheckinService();
-    final history = await service.getCheckinHistory();
-
-    history.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-    if (mounted) {
-      if (history.isNotEmpty) {
-        _latestCheckin = history.first;
-        // _checkinHistory = history; // REMOVED: Setting this field as it is unused
-
-        // --- Calculate 7-Day Average ---
-        final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-        
-        // Note: The 'history' list is used here, but is a local variable, which is fine.
-        final recentCheckins = history.where(
-          (c) => c.timestamp.isAfter(sevenDaysAgo) && c.timestamp.isBefore(DateTime.now())
-        ).toList();
-        
-        _checkinCountLast7Days = recentCheckins.length;
-
-        if (_checkinCountLast7Days > 0) {
-          final totalScore = recentCheckins.fold(0, (sum, item) => sum + item.moodScore);
-          _recentAverageMood = totalScore / _checkinCountLast7Days;
-        } else {
-          _recentAverageMood = 0.0;
-        }
-        // ------------------------------------
-        
-      } else {
-        _latestCheckin = null;
-        // _checkinHistory = []; // REMOVED: Setting this field as it is unused
-        _recentAverageMood = 0.0; 
-        _checkinCountLast7Days = 0;
-      }
-      
-      setState(() {
-        _isLoading = false; 
-      });
-    }
-  }
-
+  // UPDATED: Fetches only the API data, as check-in data now comes from the Stream.
   Future<void> _fetchInitialData() async {
     try {
       final results = await Future.wait([
-        // FIX APPLIED HERE: Added placeholder city argument
         _apiService.fetchWeatherData('New York'), 
         _apiService.fetchQuoteData(),
       ]);
@@ -106,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _weatherData = results[0] as WeatherModel;
           _quoteData = results[1] as QuoteModel;
+          _isApiLoading = false; // API data is ready
         });
       }
     } catch (e) {
@@ -113,22 +64,50 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _weatherData = WeatherModel.loading(); 
           _quoteData = QuoteModel.loading();
+          _isApiLoading = false; // Still need to stop loading even on error
         });
       }
       debugPrint("Error fetching initial data: $e");
     }
   }
 
+  // NEW: Synchronous function to calculate summary data from the Stream data
+  Map<String, dynamic> _calculateSummary(List<DailyCheckin> history) {
+    history.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    
+    final latestCheckin = history.isNotEmpty ? history.first : null;
+
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    
+    final recentCheckins = history.where(
+      (c) => c.timestamp.isAfter(sevenDaysAgo) && c.timestamp.isBefore(DateTime.now())
+    ).toList();
+    
+    final checkinCountLast7Days = recentCheckins.length;
+    double recentAverageMood = 0.0;
+
+    if (checkinCountLast7Days > 0) {
+      final totalScore = recentCheckins.fold(0, (sum, item) => sum + item.moodScore);
+      recentAverageMood = totalScore / checkinCountLast7Days;
+    }
+
+    return {
+      'latestCheckin': latestCheckin,
+      'recentAverageMood': recentAverageMood,
+      'checkinCountLast7Days': checkinCountLast7Days,
+    };
+  }
+
   // Helper function to handle navigation and refresh
   Future<void> _navigateToCheckinScreen(BuildContext context) async {
-    final result = await Navigator.of(context).push(
+    // We don't need to await the result or call setState here, 
+    // because the StreamBuilder will automatically rebuild the UI
+    // when a new check-in is saved to Firestore.
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const DailyCheckinScreen(),
       ),
     );
-    if (result == true) { 
-      _loadCheckinData();
-    }
   }
 
 
@@ -137,6 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('I2.0 - Wellbeing Coach'),
+        // ... (App Bar Actions and Leading are unchanged)
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu),
@@ -155,68 +135,126 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       drawer: const AppDrawer(), 
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16.0),
-              children: <Widget>[
-                _buildGreeting(context),
-                const SizedBox(height: 20),
-                
-                // Add Check-in Button
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _navigateToCheckinScreen(context), 
-                    icon: const Icon(Icons.add_task),
-                    label: const Text('Check-in Now!'), 
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+      
+      // CRITICAL UPDATE: Using StreamBuilder for real-time check-in data
+      body: StreamBuilder<List<DailyCheckin>>(
+        stream: _checkinService.getCheckinsStream(),
+        builder: (context, snapshot) {
+          
+          // 1. Check for connection states
+          if (snapshot.connectionState == ConnectionState.waiting || _isApiLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error loading data: ${snapshot.error}'));
+          }
+
+          // 2. Data is ready: Get history and calculate summary
+          final checkinHistory = snapshot.data ?? [];
+          final summary = _calculateSummary(checkinHistory);
+          final DailyCheckin? latestCheckin = summary['latestCheckin'];
+          final double recentAverageMood = summary['recentAverageMood'];
+          final int checkinCountLast7Days = summary['checkinCountLast7Days'];
+
+          // 3. Build the main content using the retrieved data
+          return ListView(
+            padding: const EdgeInsets.all(16.0),
+            children: <Widget>[
+              // Pass data to Greeting
+              _buildGreeting(context, latestCheckin), 
+              const SizedBox(height: 20),
+              
+              // Add Check-in Button (FAB is no longer here, so this stays)
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  onPressed: () => _navigateToCheckinScreen(context), 
+                  icon: const Icon(Icons.add_task),
+                  label: const Text('Check-in Now!'), 
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                
-                // 1. 7-Day Mood Summary (NEW)
-                _buildMoodSummary(), 
-                const SizedBox(height: 20),
-                
-                // 2. Latest Check-in Card (Finalized and uses live data)
-                if (_latestCheckin != null) _buildLatestCheckinCard(),
-                const SizedBox(height: 20),
+              ),
+              const SizedBox(height: 20),
+              
+              // 1. 7-Day Mood Summary (Pass calculated values)
+              _buildMoodSummary(recentAverageMood, checkinCountLast7Days), 
+              const SizedBox(height: 20),
+              
+              // 2. Latest Check-in Card (Pass latest check-in object)
+              if (latestCheckin != null) _buildLatestCheckinCard(latestCheckin),
+              const SizedBox(height: 20),
 
-                // 3. Weather Card 
-                WeatherCard(weatherData: _weatherData),
-                const SizedBox(height: 20),
+              // 3. Weather Card (API data is ready if we passed the loading check)
+              WeatherCard(weatherData: _weatherData),
+              const SizedBox(height: 20),
 
-                // 4. Action Buttons
-                const Text('What do you want to work on right now?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 10),
-                _buildActionButtons(),
-                const SizedBox(height: 20),
+              // 4. Action Buttons
+              const Text('What do you want to work on right now?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 10),
+              _buildActionButtons(),
+              const SizedBox(height: 20),
 
-                // 5. Quote Card 
-                QuoteCard(quoteData: _quoteData),
-                const SizedBox(height: 20),
-                
-                // 6. Current Focus/Goal (Mock Data - To be replaced by Goal Feature)
-                const Text('Your Current Focus:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 10),
-                _buildFocusCard(context),
-              ],
-            ),
+              // 5. Quote Card 
+              QuoteCard(quoteData: _quoteData),
+              const SizedBox(height: 20),
+              
+              // 6. Current Focus/Goal (Mock Data)
+              const Text('Your Current Focus:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 10),
+              _buildFocusCard(context),
+            ],
+          );
+        },
+      ),
+      // IMPORTANT: Add the FAB back to the main Scaffold
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _navigateToCheckinScreen(context),
+        child: const Icon(Icons.add),
+        tooltip: 'New Check-in',
+      ),
     );
   }
 
   // --- Widget Builders ---
   
-  // NEW: Helper method to generate the mood summary widget
-  Widget _buildMoodSummary() {
-    if (_checkinCountLast7Days == 0) {
+  // UPDATED: Now requires latestCheckin as an argument
+  Widget _buildGreeting(BuildContext context, DailyCheckin? latestCheckin) {
+    // UPDATED: Dynamic greeting based on latest check-in
+    final String greetingText = latestCheckin != null
+      ? 'Welcome back, Fernando.' // Personalized text
+      : 'No recent check-ins – how are you feeling today?';
+      
+    final String subtitleText = latestCheckin != null
+        ? 'Your last check-in was at ${DateFormat('h:mm a, MMM d').format(latestCheckin.timestamp)}.'
+        : 'Get started with a quick check-in.';
+      
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          greetingText, 
+          style: Theme.of(context).textTheme.headlineMedium!.copyWith(
+            fontWeight: FontWeight.w800,
+            color: AppColors.textDark,
+          ),
+        ),
+        Text(
+          subtitleText, 
+          style: const TextStyle(color: AppColors.textSubtle),
+        ),
+      ],
+    );
+  }
+
+  // UPDATED: Now requires recentAverageMood and checkinCountLast7Days as arguments
+  Widget _buildMoodSummary(double recentAverageMood, int checkinCountLast7Days) {
+    if (checkinCountLast7Days == 0) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -235,10 +273,10 @@ class _HomeScreenState extends State<HomeScreen> {
     String summaryText;
     Color summaryColor;
     
-    if (_recentAverageMood >= 4.0) {
+    if (recentAverageMood >= 4.0) {
       summaryText = 'Great job! Your average mood is High.';
       summaryColor = AppColors.accent;
-    } else if (_recentAverageMood >= 3.0) {
+    } else if (recentAverageMood >= 3.0) {
       summaryText = 'Your mood is stable. Keep an eye on things.';
       summaryColor = AppColors.success;
     } else {
@@ -274,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _recentAverageMood.toStringAsFixed(2),
+                      recentAverageMood.toStringAsFixed(2),
                       style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: summaryColor),
                     ),
                     const Text(
@@ -284,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 Text(
-                  'from $_checkinCountLast7Days entries',
+                  'from $checkinCountLast7Days entries',
                   style: const TextStyle(color: AppColors.textDark, fontSize: 14),
                 ),
               ],
@@ -299,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       builder: (context) => const HistoryScreen(),
                     ),
                   );
-                  _loadCheckinData(); 
+                  // The stream handles refresh, no need for manual _loadCheckinData()
                 },
                 child: const Text('View Full History >>', style: TextStyle(color: AppColors.primaryColor)),
               ),
@@ -310,13 +348,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
   
-  // FINALIZED: Latest Check-in Card (Replaces the old _buildHistorySummary)
-  Widget _buildLatestCheckinCard() {
-    if (_latestCheckin == null) {
-      return const SizedBox.shrink();
-    }
-    
-    final latestCheckin = _latestCheckin!;
+  // UPDATED: Now requires DailyCheckin object as an argument
+  Widget _buildLatestCheckinCard(DailyCheckin latestCheckin) {
     final formattedDate = DateFormat('MMM d, h:mm a').format(latestCheckin.timestamp);
     
     // Map mood score to an icon/label 
@@ -369,36 +402,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
   
-  Widget _buildGreeting(BuildContext context) {
-    // UPDATED: Dynamic greeting based on latest check-in
-    final String greetingText = _latestCheckin != null
-      ? 'Welcome back, Fernando.'
-      : 'No recent check-ins – how are you feeling today?';
-      
-    final String subtitleText = _latestCheckin != null
-        ? 'Your last check-in was at ${DateFormat('h:mm a, MMM d').format(_latestCheckin!.timestamp)}.'
-        : 'Get started with a quick check-in.';
-      
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          greetingText, 
-          style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textDark,
-          ),
-        ),
-        Text(
-          subtitleText, 
-          style: const TextStyle(color: AppColors.textSubtle),
-        ),
-      ],
-    );
-  }
-
   Widget _buildActionButtons() {
     return Wrap(
       spacing: 10.0,

@@ -1,58 +1,45 @@
 name: wellbeing_mobile_app
-description: A new Flutter project for a Wellbeing Coach app.
-
-# The following line prevents the package from being accidentally published to
-# pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+description: A new Flutter project for wellbeing tracking.
+publish_to: 'none'
 
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.0.0 <4.0.0'
 
+# =========================================================
+# ALL PROJECT DEPENDENCIES ARE LISTED BELOW
+# =========================================================
 dependencies:
   flutter:
     sdk: flutter
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.6
+  # --- CORE FIREBASE PACKAGES (Required for Auth & Data) ---
+  firebase_core: ^2.32.0 
+  firebase_auth: ^4.20.0 
+  cloud_firestore: ^4.17.5 
   
-  # Core Packages
-  font_awesome_flutter: ^10.7.0
+  # --- UTILITY PACKAGES (Required for App Functionality) ---
+  intl: ^0.20.2          # Required for DateFormat (Fixes previous code errors)
+  flutter_tts: ^4.2.3    # Text-to-Speech
   shared_preferences: ^2.2.2
-  
-  # For Date Formatting (used in GoalScreen)
-  intl: ^0.19.0 # Note: Using latest stable version
-  
-  # For generating unique IDs (used in GoalModel)
-  uuid: ^4.3.3
+  cupertino_icons: ^1.0.6
 
-  # === MISSING PACKAGES (REQUIRED BY ANALYSIS) ===
-  # Firebase Core and Services
-  firebase_core: ^2.25.4  # Core Firebase service
-  firebase_auth: ^4.17.4  # For authentication
-  cloud_firestore: ^4.15.4 # For Firestore database
-  
-  # Geolocation and Weather APIs
-  geolocator: ^11.0.0      # For determining device location
-  http: ^1.2.1            # For API service (Weather/Quote fetch)
-  
-  # Text-to-Speech (TTS)
-  flutter_tts: ^4.0.2     # For text-to-speech functionality
-  
-  # Charts (for StatsChart widget)
-  fl_chart: ^0.68.0       # For displaying statistics charts
+  # --- NEW MISSING PACKAGES (CRITICAL FIXES for 53 Errors) ---
+  http: ^1.2.1               # Required for API calls (e.g., weather or external data)
+  uuid: ^4.4.0               # Required for generating unique IDs (e.g., goals)
+  font_awesome_flutter: ^10.7.0 # Required for FontAwesome Icons
+  fl_chart: ^0.68.0          # Required for statistical charts
+  # --------------------------------------------------------
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.1
+  flutter_lints: ^2.0.0
 
-# The following section is specific to Flutter.
 flutter:
   uses-material-design: true
-
-  # To add assets to your application, add an assets section, like this:
+  # To add assets to your application, add an assets section below.
   # assets:
-  #   - images/
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg

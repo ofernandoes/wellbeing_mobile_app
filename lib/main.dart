@@ -1,38 +1,32 @@
 // lib/main.dart
 
-
 // --- IMPORTS ---
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // REQUIRED FOR FIREBASE
-import 'package:flutter_tts/flutter_tts.dart'; // Text-to-Speech
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_tts/flutter_tts.dart'; 
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math';
 
 
-
-
-// NOTE: Geolocator is typically not used in main.dart, but is kept for completeness.
-
-
-import 'package:wellbeing_mobile_app/entry_screen.dart'; // Note: This should probably be DailyCheckinScreen
+// Local Imports 
+import 'package:wellbeing_mobile_app/entry_screen.dart'; 
+import 'package:wellbeing_mobile_app/welcome_screen.dart';
 import 'package:wellbeing_mobile_app/widgets/forecast_day.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
+import 'package:wellbeing_mobile_app/firebase_options.dart'; 
+import 'package:wellbeing_mobile_app/services/auth_service.dart'; // 🔥 CRITICAL FIX: Auth Service Import
 // --------------------------------------------------------------------------
 
-
-
-
 // --- MOCK DATA/GLOBAL CONSTANTS ---
-// (Your static data remains untouched for now)
 const List<String> weatherSuggestions = [
  'It\'s a fresh start! Get outside for 15 minutes to soak up some sun.',
  'Great day for movement! Try a quick 30-minute walk or light jog.',
  'It looks cozy! A perfect time for an indoor yoga session or mindfulness exercise.',
  'Wind down time. Make sure your bedroom is dark and cool for deep sleep.'
 ];
-
 
 const List<Map<String, dynamic>> staticWeatherPatterns = [
    {"icon_code": 801, "max_c": 19, "min_c": 10},
@@ -45,118 +39,107 @@ const List<Map<String, dynamic>> staticWeatherPatterns = [
 ];
 // --------------------------------------------------------------------------
 
-
-// ⚠️ FIX: Correctly implement async main function for Firebase Initialization
 void main() async {
- // 1. MUST BE FIRST: Ensure Flutter is initialized
+ // 1. MUST BE FIRST
  WidgetsFlutterBinding.ensureInitialized();
-  // 2. NEW: Initialize Firebase
- // NOTE: You must have run `flutterfire configure` and configured the
- // `firebase_options.dart` file in your project for this to work.
+  
+  // 2. Initialize Firebase
  try {
    await Firebase.initializeApp(
-     // Ensure you have a 'firebase_options.dart' file with the correct content
-     // options: DefaultFirebaseOptions.currentPlatform,
+     options: DefaultFirebaseOptions.currentPlatform,
    );
-   debugPrint('User is signed in: null (Mock/Placeholder)'); // FIX: Changed print to debugPrint
+   debugPrint('Firebase initialized successfully.'); 
  } catch (e) {
-   // Optional: Log an error if Firebase fails to initialize
    debugPrint('Firebase Initialization Failed: $e');
  }
-
-
- // 3. Run the main app widget
- // FIX: Added const to MyApp constructor (Line 802 fix)
- runApp(const MyApp());
+  
+  // 3. Check authentication status
+  final AuthService authService = AuthService();
+  final bool isLoggedIn = authService.getCurrentUser() != null;
+  
+ // 4. Run the main app widget, passing the auth state
+ runApp(MyApp(isLoggedIn: isLoggedIn));
 }
-
 
 // --------------------------------------------------------------------------
 
-
-
-
 class MyApp extends StatelessWidget {
- const MyApp({super.key});
+  final bool isLoggedIn; 
+  
+  const MyApp({super.key, required this.isLoggedIn});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Wellbeing App',
+      // ⚠️ THEME SETUP USING AppColors (Aqua Pop) ⚠️
+      theme: ThemeData(
+        // 1. Primary Color
+        primaryColor: AppColors.primaryColor,
+
+        // 2. Scaffold/Screen Background
+        scaffoldBackgroundColor: AppColors.background,
+
+        // 3. Color Scheme Setup (Essential for Material 3 components)
+        colorScheme: const ColorScheme.light(
+          primary: AppColors.primaryColor, 
+          secondary: AppColors.accent, 
+          surface: AppColors.secondary, 
+        ),
 
 
- @override
- Widget build(BuildContext context) {
-   return MaterialApp(
-     title: 'Wellbeing App',
-     // ⚠️ THEME SETUP USING AppColors (Aqua Pop) ⚠️
-     theme: ThemeData(
-       // 1. Primary Color
-       primaryColor: AppColors.primaryColor,
-
-
-       // 2. Scaffold/Screen Background
-       scaffoldBackgroundColor: AppColors.background,
-
-
-       // 3. Color Scheme Setup (Essential for Material 3 components)
-       colorScheme: const ColorScheme.light(
-         primary: AppColors.primaryColor, // Light Aqua Blue
-         secondary: AppColors.accent, // Off-White
-         surface: AppColors.secondary, // Very Pale Aqua for cards/surfaces
-       ),
-
-
-       // 4. App Bar style
-       appBarTheme: const AppBarTheme(
-         backgroundColor: AppColors.primaryColor,
-         titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-         iconTheme: IconThemeData(color: Colors.white),
-       ),
+        // 4. App Bar style
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppColors.primaryColor,
+          titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          iconTheme: IconThemeData(color: Colors.white),
+        ),
       
-       // 5. Text Theme
-       textTheme: Theme.of(context).textTheme.apply(
-         bodyColor: AppColors.textDark,
-         displayColor: AppColors.textDark,
-       ),
+        // 5. Text Theme
+        textTheme: Theme.of(context).textTheme.apply(
+          bodyColor: AppColors.textDark,
+          displayColor: AppColors.textDark,
+        ),
 
-
-       useMaterial3: true,
-       // primarySwatch is typically ignored when colorScheme is set, but kept for compatibility
-       // ignore: deprecated_member_use
-       primarySwatch: MaterialColor(AppColors.primaryColor.value, {
-         // FIX: Replaced withOpacity with withAlpha((255 * X).round())
-         50: AppColors.primaryColor.withAlpha((255 * 0.1).round()),
-         100: AppColors.primaryColor.withAlpha((255 * 0.2).round()),
-         500: AppColors.primaryColor,
-         700: AppColors.primaryColor.withAlpha((255 * 0.7).round()),
-         900: AppColors.primaryColor.withAlpha((255 * 0.9).round()),
-       }),
-     ),
-     // ------------------------------------
+        useMaterial3: true,
+        // ignore: deprecated_member_use
+        primarySwatch: MaterialColor(AppColors.primaryColor.value, {
+          50: AppColors.primaryColor.withAlpha((255 * 0.1).round()),
+          100: AppColors.primaryColor.withAlpha((255 * 0.2).round()),
+          500: AppColors.primaryColor,
+          700: AppColors.primaryColor.withAlpha((255 * 0.7).round()),
+          900: AppColors.primaryColor.withAlpha((255 * 0.9).round()),
+        }),
+      ),
+      // ------------------------------------
     
-     debugShowCheckedModeBanner: false, 
-     home: const MainAppScaffold(),
-   );
- }
+      debugShowCheckedModeBanner: false, 
+      
+      // 🔥 FIX 1: Set initial screen based on isLoggedIn state
+      home: isLoggedIn ? const MainAppScaffold() : const WelcomeScreen(),
+      
+      // 🔥 CRITICAL FIX 2: Define the routes map to fix the "Could not find generator" error
+      routes: {
+        '/welcome': (context) => const WelcomeScreen(),
+        // This is the required route for the WelcomeScreen button to navigate
+        '/home': (context) => const MainAppScaffold(), 
+      }
+    );
+  }
 }
-
 
 // --- TOP LEVEL SCAFFOLD (Handles Top Navigation) ---
 class MainAppScaffold extends StatefulWidget {
  const MainAppScaffold({super.key});
 
-
  @override
  State<MainAppScaffold> createState() => _MainAppScaffoldState();
 }
 
-
 class _MainAppScaffoldState extends State<MainAppScaffold> {
  // 1. Maintain the current screen index
  int _selectedIndex = 0; 
-  // 2. Define the icons for the navigation buttons (ICONS ONLY)
- // static const List<IconData> _icons = [ // REMOVED: Unused field _icons
- //   Icons.home,         
- //   Icons.track_changes,
- //   Icons.flash_on      
- // ];
-
+ 
 
  // 3. Define the widget options (The screens)
  static final List<Widget> _widgetOptions = <Widget>[
@@ -165,28 +148,21 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
    const Center(child: Text('Boost Screen', style: TextStyle(fontSize: 30))), // Index 2: Boost
  ];
 
-
  void _onItemTapped(int index) {
    setState(() {
      _selectedIndex = index;
    });
  }
 
-
- // --- Widget for the custom Top Navigation Buttons (ICONS ONLY) ---
- // (Your _buildTopNavigationButtons logic is now integrated into the AppBar actions)
-
-
  @override
  Widget build(BuildContext context) {
    return Scaffold(
      // --- App Bar ---
      appBar: AppBar(
-       // FIX: Ensure the leading menu icon is visible (white)
        leading: Builder(
          builder: (context) {
            return IconButton(
-             icon: const Icon(Icons.menu, color: Colors.white), // Explicitly set to white
+             icon: const Icon(Icons.menu, color: Colors.white), 
              onPressed: () {
                Scaffold.of(context).openDrawer(); 
              },
@@ -200,14 +176,11 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold) 
        ),
 
-
        backgroundColor: AppColors.primaryColor, 
        centerTitle: false, 
 
-
        // Custom Top Navigation buttons and Profile Icon
        actions: [
-         // FIX: Updated the icons in the AppBar to match the navigation style in the image
          _selectedIndex == 0 
            ? IconButton(
                icon: const Icon(Icons.home, color: Colors.white),
@@ -304,6 +277,16 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
              },
            ),
            const Divider(),
+           // Logout option
+           ListTile(
+             leading: const Icon(Icons.logout, color: AppColors.error),
+             title: const Text('Logout'),
+             onTap: () async {
+               Navigator.pop(context); 
+               // 🔥 LOGOUT FIX: Use the imported service
+               await AuthService().signOut();
+             },
+           ),
            ListTile(
              leading: const Icon(Icons.settings),
              title: const Text('Settings'),
@@ -327,8 +310,6 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
 }
 
 
-
-
 // --- HOME SCREEN (Contains all data loading and UI) ---
 class HomeScreen extends StatefulWidget {
  const HomeScreen({super.key});
@@ -338,19 +319,12 @@ class HomeScreen extends StatefulWidget {
  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-
-
-
 class _HomeScreenState extends State<HomeScreen> {
  late final FlutterTts flutterTts; 
 
-
  // Initial State Variables
  String _userName = 'User';
- // final int _entryCount = 0;  // REMOVED: Unused field _entryCount
  String _weatherSuggestion = 'Loading suggestion...';
-  // Weather State variables
- // String _locationName = 'Fetching data...'; // REMOVED: Unused field _locationName
  String _currentTemp = 'N/A';
  String _weatherCondition = 'Loading weather...';
  IconData _weatherIcon = Icons.autorenew; 
@@ -371,20 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
    {'quote': 'What lies behind us and what lies before us are tiny matters compared to what lies within us.', 'author': '— Ralph Waldo Emerson (1803–1882)'},
    {'quote': 'The best time to plant a tree was 20 years ago. The second best time is now.', 'author': '— Chinese Proverb (c. 400 BC)'},
    {'quote': 'Do not wait to strike till the iron is hot; but make the iron hot by striking.', 'author': '— William Butler Yeats (1865–1939)'},
-   {'quote': 'It is not the strongest of the species that survives, nor the most intelligent that survives. It is the one that is most adaptable to change.', 'author': '— Charles Darwin (1819–1882)'},
-   {'quote': 'The mind is everything. What you think you become.', 'author': '— Buddha (c. 6th century BC)'},
-   {'quote': 'Tough times never last, but tough people do.', 'author': '— Robert H. Schuller (1926–2015)'},
-   {'quote': 'You miss 100% of the shots you don\'t take.', 'author': '— Wayne Gretzky (b. 1961)'},
-   {'quote': 'The successful warrior is the average man, with laser-like focus.', 'author': '— Bruce Lee (1940–1973)'},
-   {'quote': 'Believe you can and you\'re halfway there.', 'author': '— Theodore Roosevelt (1858–1919)'},
-   {'quote': 'Life is 10% what happens to us and 90% how we react to it.', 'author': '— Charles R. Swindoll (b. 1934)'},
-   {'quote': 'Our greatest glory is not in never failing, but in rising up every time we fail.', 'author': '— Ralph Waldo Emerson (1803–1882)'},
-   {'quote': 'Strive not to be a success, but rather to be of value.', 'author': '— Albert Einstein (1879–1955)'},
-   {'quote': 'The best revenge is massive success.', 'author': '— Frank Sinatra (1915–1998)'},
  ];
-
-
-
 
  @override
  void initState() {
@@ -408,42 +369,17 @@ class _HomeScreenState extends State<HomeScreen> {
  }
 
 
- // --- Date Formatting Utility ---
- // String _formatDate(DateTime tm) { // REMOVED: Unused element _formatDate
- //   return DateFormat('EEEE, dd of MMMM, yyyy').format(tm); 
- // }
   // --- Weather/Location Logic (MOCK DATA) ---
-
-
- // Future<Position> _determinePosition() async { // REMOVED: Unused element _determinePosition
- //   return Position(
- //     latitude: 51.5074, 
- //     longitude: 0.1278, 
- //     timestamp: DateTime.now(), 
- //     accuracy: 0.0, 
- //     altitude: 0.0, 
- //     heading: 0.0, 
- //     speed: 0.0, 
- //     speedAccuracy: 0.0, 
- //     floor: 0, 
- //     isMocked: true,
- //     altitudeAccuracy: 0.0,
- //     headingAccuracy: 0.0, 
- //   );
- // }
-
-
  Future<void> _fetchWeatherData() async {
    try {
      await Future.delayed(const Duration(milliseconds: 500));
     
-     // _locationName = 'London'; // REMOVED: Location name is not used in the UI anymore
      _currentTemp = '18';
      _weatherCondition = 'Cloudy'; 
     
      final Map<String, dynamic> weatherVisuals = _getWeatherVisuals(_weatherCondition);
      _weatherIcon = weatherVisuals['icon'];
-     _weatherIconColor = AppColors.textDark; // Adjusted for better contrast on secondary color
+     _weatherIconColor = AppColors.textDark; 
     
      final List<Map<String, dynamic>> dynamicForecast = [];
      final DateTime today = DateTime.now();
@@ -452,7 +388,6 @@ class _HomeScreenState extends State<HomeScreen> {
          final DateTime forecastDate = today.add(Duration(days: i));
          final Map<String, dynamic> pattern = staticWeatherPatterns[(i - 1) % staticWeatherPatterns.length];
          final Map<String, dynamic> visual = _getOpenWeatherVisualsByCode(pattern['icon_code'] as int);
-
 
          dynamicForecast.add({
            'day': DateFormat('EEE').format(forecastDate),
@@ -465,12 +400,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
      _forecastData = dynamicForecast;
-     debugPrint('Location Data: 51.5074, 0.1278 (Mock)'); // FIX: Changed print to debugPrint
+     debugPrint('Location Data: 51.5074, 0.1278 (Mock)'); 
 
 
    } catch (e) {
      debugPrint('Error fetching dynamic mock weather data: $e');
-     // _locationName = 'Mock Error'; // REMOVED: Location name is not used in the UI anymore
      _currentTemp = 'N/A';
      _weatherCondition = 'Failed to load mock data.';
      _weatherIcon = Icons.error_outline;
@@ -483,13 +417,12 @@ class _HomeScreenState extends State<HomeScreen> {
  // Maps main condition text to a Flutter Icon and Color (OpenWeatherMap)
  Map<String, dynamic> _getWeatherVisuals(String condition) {
    if (condition == 'Clear') {
-     return {'icon': Icons.wb_sunny, 'color': AppColors.accent}; // Accent: Vibrant Orange
+     return {'icon': Icons.wb_sunny, 'color': AppColors.accent}; 
    } else if (condition == 'Rain' || condition == 'Drizzle') {
      return {'icon': Icons.cloudy_snowing, 'color': AppColors.primaryColor};
    } else if (condition == 'Thunderstorm') {
-     return {'icon': Icons.thunderstorm, 'color': AppColors.warning}; // Using warning for lightning
+     return {'icon': Icons.thunderstorm, 'color': AppColors.warning}; 
    } else if (condition == 'Snow') {
-     // FIX: Replaced deprecated Color.fromRGBO/component accessors with withAlpha
      return {'icon': Icons.ac_unit, 'color': AppColors.primaryColor.withAlpha((255 * 0.7).round())};
    } else if (condition == 'Clouds' || condition == 'Cloudy') {
      return {'icon': Icons.cloud, 'color': AppColors.textSubtle};
@@ -508,12 +441,11 @@ class _HomeScreenState extends State<HomeScreen> {
    } else if (code >= 300 && code < 600) { // Drizzle/Rain
      return {'icon': Icons.cloudy_snowing, 'color': AppColors.primaryColor};
    } else if (code >= 600 && code < 700) { // Snow
-     // FIX: Replaced deprecated Color.fromRGBO/component accessors with withAlpha
      return {'icon': Icons.ac_unit, 'color': AppColors.primaryColor.withAlpha((255 * 0.7).round())};
    } else if (code >= 700 && code < 800) { // Atmosphere (Mist, Fog, etc.)
      return {'icon': Icons.blur_on, 'color': AppColors.textSubtle};
    } else if (code == 800) { // Clear
-     return {'icon': Icons.wb_sunny, 'color': AppColors.accent}; // Accent: Vibrant Orange
+     return {'icon': Icons.wb_sunny, 'color': AppColors.accent}; 
    } else if (code >= 801 && code <= 804) { // Clouds
      return {'icon': Icons.cloud, 'color': AppColors.textSubtle};
    } else {
@@ -565,7 +497,6 @@ class _HomeScreenState extends State<HomeScreen> {
    _author = currentAuthor;
  }
 
-
  void _updateWeatherSuggestion() {
    final hour = DateTime.now().hour;
    int suggestionIndex;
@@ -580,41 +511,20 @@ class _HomeScreenState extends State<HomeScreen> {
  }
 
 
- // String _getTimeGreeting() { // REMOVED: Unused element _getTimeGreeting
- //   final hour = DateTime.now().hour;
- //   if (hour < 12) return 'Good morning';
- //   if (hour < 17) return 'Good afternoon';
- //   return 'Good evening';
- // }
-
-
  Future<void> _initializeUserAndGreeting() async {
    final prefs = await SharedPreferences.getInstance();
-   _userName = prefs.getString('userName') ?? 'Fernando';  // Changed default to Fernando
-  
- 
-   final now = DateTime.now();
-  
-   // String baseGreeting; // The baseGreeting logic is useful but not strictly necessary for the 'Welcome back, Fernando' hardcoded style
-   /*
-   if (lastVisit != null) {
-     final lastVisitTime = DateTime.fromMillisecondsSinceEpoch(lastVisit); 
-     if (lastVisitTime.day == now.day && lastVisitTime.month == now.month && lastVisitTime.year == now.year) {
-       baseGreeting = 'Welcome back'; 
-     } else {
-       baseGreeting = _getTimeGreeting();
-     }
+   // Use Firebase user ID as a fallback, but default to 'Fernando' for better UX
+   final user = FirebaseAuth.instance.currentUser;
+   if (user != null && user.isAnonymous) {
+     _userName = 'Guest'; 
    } else {
-     baseGreeting = 'Hello';
+     _userName = prefs.getString('userName') ?? 'Fernando';
    }
-   */
   
-   // final lastVisit = prefs.getInt('lastVisitTimestamp'); // REMOVED: Unused local variable 'lastVisit'
+   final now = DateTime.now();
   
    await prefs.setInt('lastVisitTimestamp', now.millisecondsSinceEpoch);
  }
-
-
 
 
 void _openNewEntry(BuildContext context) async {
@@ -648,12 +558,11 @@ void _openNewEntry(BuildContext context) async {
  }
   Widget _buildWeatherCard() {
    return Card(
-     elevation: 0, // Set elevation low/zero to match the flat look of the image
-     // Explicitly set the card color to secondary (Very Pale Aqua)
+     elevation: 0, 
      color: AppColors.secondary, 
      shape: RoundedRectangleBorder(
          borderRadius: BorderRadius.circular(10.0),
-         side: BorderSide.none // Remove border for a cleaner look
+         side: BorderSide.none 
      ),
      child: Padding(
        padding: const EdgeInsets.all(16.0),
@@ -684,13 +593,12 @@ void _openNewEntry(BuildContext context) async {
              height: 120,
              child: ListView(
                scrollDirection: Axis.horizontal,
-               // FIX: Using named parameters (day:, date:, icon:, etc.) to match ForecastDay constructor
                children: _forecastData.isNotEmpty
                  ? _forecastData.map((dayData) => ForecastDay( 
-                     key: ValueKey(dayData['date']), // Added key for better performance
+                     key: ValueKey(dayData['date']), 
                      day: dayData['day'] as String,
                      date: dayData['date'] as String,
-                     icon: dayData['icon'] as IconData, // Now correctly passed as named parameter
+                     icon: dayData['icon'] as IconData, 
                      color: dayData['color'] as Color,
                      temp: dayData['temp'] as String,
                    )).toList()
@@ -713,23 +621,19 @@ void _openNewEntry(BuildContext context) async {
  Widget build(BuildContext context) {
    const String supportiveSuggestionText = 'No check-ins yet — how are you feeling today?.';
   
-   // Remove static date and rely on the weather card for date context
-
-
-   return SingleChildScrollView( // Removed Stack and Positioned
+   return SingleChildScrollView( 
      padding: const EdgeInsets.all(24.0),
      child: Column(
        crossAxisAlignment: CrossAxisAlignment.start,
        children: <Widget>[
          // --- A. DYNAMIC GREETING ---
          Text(
-           // Use static "Welcome back" to match the image, or _getTimeGreeting() for dynamism
            'Welcome back, $_userName.', 
            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryColor), 
          ),
          const SizedBox(height: 4),
         
-         // FIX: Wrap the supportive text and the new entry chip in a Row for correct horizontal placement
+         // Wrap the supportive text and the new entry chip in a Row
          Row(
            mainAxisAlignment: MainAxisAlignment.spaceBetween,
            crossAxisAlignment: CrossAxisAlignment.center,
@@ -755,7 +659,7 @@ void _openNewEntry(BuildContext context) async {
              }
            },
          ),
-         const Divider(height: 40, color: Colors.transparent), // Use transparent divider for spacing
+         const Divider(height: 40, color: Colors.transparent), 
 
 
          // --- C. ACTION PROMPT & CHIPS ---
@@ -775,7 +679,7 @@ void _openNewEntry(BuildContext context) async {
                  final mainState = context.findAncestorStateOfType<_MainAppScaffoldState>();
                  mainState?._onItemTapped(1); 
                },
-               backgroundColor: AppColors.primaryColor, // Light Aqua Blue
+               backgroundColor: AppColors.primaryColor, 
                labelStyle: const TextStyle(color: Colors.white),
              ),
              ActionChip(
@@ -785,7 +689,7 @@ void _openNewEntry(BuildContext context) async {
                  final mainState = context.findAncestorStateOfType<_MainAppScaffoldState>();
                  mainState?._onItemTapped(2);
                },
-               backgroundColor: AppColors.accent, // Accent (Vibrant Orange/Yellow)
+               backgroundColor: AppColors.accent, 
                labelStyle: const TextStyle(color: AppColors.textDark), 
              ),
              ActionChip(
@@ -796,7 +700,7 @@ void _openNewEntry(BuildContext context) async {
                    const SnackBar(content: Text('Review Progress Feature Coming Soon!'))
                  );
                },
-               backgroundColor: AppColors.success, // Use a distinct color for this action
+               backgroundColor: AppColors.success, 
                labelStyle: const TextStyle(color: Colors.white),
              ),
            ],
@@ -811,8 +715,8 @@ void _openNewEntry(BuildContext context) async {
          ),
          const SizedBox(height: 8),
          Card(
-           elevation: 0, // Set elevation low/zero
-           color: AppColors.secondary, // Very Pale Aqua
+           elevation: 0, 
+           color: AppColors.secondary, 
            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
            child: Padding(
              padding: const EdgeInsets.all(16.0),
@@ -857,9 +761,8 @@ void _openNewEntry(BuildContext context) async {
          const SizedBox(height: 10),
          Card(
            elevation: 0,
-           color: AppColors.secondary, // Very Pale Aqua
+           color: AppColors.secondary, 
            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-           // FIX for lib/main.dart:862:19: Added const here
            child: const ListTile( 
              title: Text(
                'Learn a New Language',

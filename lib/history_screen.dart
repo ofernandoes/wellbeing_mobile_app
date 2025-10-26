@@ -1,55 +1,119 @@
-// lib/screens/history_screen.dart
+// lib/history_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-// FIX: Corrected relative path from lib/screens/ to lib/services/
-import '../services/checkin_service.dart'; 
-// FIX: Corrected relative path from lib/screens/ to lib/
-import '../checkin_detail_screen.dart';    
-// Assuming DailyCheckin is defined in a model file, let's include it for safety,
-// though it might be defined in checkin_service.dart or checkin_detail_screen.dart
-// Since we don't know the exact location of the model, we'll proceed assuming CheckinService handles it.
+import '../services/checkin_service.dart';
+import 'daily_checkin_screen.dart'; // Used for editing existing check-ins
 
-
-class HistoryScreen extends StatefulWidget {
+class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
-}
+  Widget build(BuildContext context) {
+    // Instantiate the service to access the Firestore stream
+    final CheckinService checkinService = CheckinService();
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Check-in History'),
+        backgroundColor: AppColors.primaryColor,
+      ),
+      
+      // CRITICAL: Use StreamBuilder to listen for all check-ins in real-time
+      body: StreamBuilder<List<DailyCheckin>>(
+        // Call the new stream function from the Firestore service
+        stream: checkinService.getCheckinsStream(),
+        builder: (context, snapshot) {
+          
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error loading history: ${snapshot.error}'));
+          }
+          
+          // Data is ready (list of DailyCheckin objects)
+          final List<DailyCheckin> history = snapshot.data ?? [];
+          
+          if (history.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.history_toggle_off, size: 60, color: AppColors.textSubtle),
+                    const SizedBox(height: 10),
+                    Text(
+                      'No check-ins recorded yet.',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 10),
+                    const Text('Start tracking your mood by creating your first daily check-in.'),
+                  ],
+                ),
+              ),
+            );
+          }
+          
+          return ListView.builder(
+            itemCount: history.length,
+            itemBuilder: (context, index) {
+              final checkin = history[index];
+              // DateFormat is now available because you added the 'intl' package
+              final formattedDate = DateFormat('EEEE, MMM d, yyyy h:mm a').format(checkin.timestamp);
+              
+              // Map mood score to an icon/label
+              final moodText = checkin.moodScore == 5 ? 'Great' : 
+                               checkin.moodScore == 4 ? 'Good' : 
+                               checkin.moodScore == 3 ? 'Okay' : 
+                               checkin.moodScore == 2 ? 'Bad' : 'Awful';
+              final moodColor = checkin.moodScore == 5 ? AppColors.accent : 
+                                checkin.moodScore == 4 ? AppColors.success : 
+                                checkin.moodScore == 3 ? AppColors.textSubtle : 
+                                checkin.moodScore == 2 ? AppColors.warning : AppColors.error;
 
-class _HistoryScreenState extends State<HistoryScreen> {
-  // Assuming DailyCheckin is the correct model name (it will likely cause an error soon)
-  List<DailyCheckin> _checkinHistory = []; 
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCheckinHistory();
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 10.0),
+                child: ListTile(
+                  leading: Icon(
+                    _getMoodIcon(checkin.moodScore),
+                    color: moodColor,
+                    size: 30,
+                  ),
+                  title: Text(
+                    '$moodText (Score ${checkin.moodScore})',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: moodColor),
+                  ),
+                  subtitle: Text(
+                    '$formattedDate\n${checkin.notes.isNotEmpty ? checkin.notes : 'No notes recorded.'}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: const Icon(Icons.edit, color: AppColors.textSubtle),
+                  onTap: () {
+                    // Navigate to DailyCheckinScreen for editing
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => DailyCheckinScreen(
+                          checkinToEdit: checkin,
+                        ),
+                      ),
+                    );
+                    // The StreamBuilder will automatically rebuild the list when the item is updated/saved.
+                  },
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
   }
 
-  Future<void> _loadCheckinHistory() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    final service = CheckinService();
-    // Fetch all check-in entries
-    final history = await service.getCheckinHistory();
-
-    // Sort to display the newest entries first
-    history.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-    if (mounted) {
-      setState(() {
-        _checkinHistory = history;
-        _isLoading = false;
-      });
-    }
-  }
-
-  // Helper method to determine the icon based on the mood score
+  // Helper function reused from daily_checkin_screen
   IconData _getMoodIcon(int score) {
     switch (score) {
       case 5: return Icons.sentiment_very_satisfied;
@@ -57,89 +121,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       case 3: return Icons.sentiment_neutral;
       case 2: return Icons.sentiment_dissatisfied;
       case 1: return Icons.sentiment_very_dissatisfied;
-      default: return Icons.help_outline;
+      default: return Icons.sentiment_neutral;
     }
-  }
-  
-  // Helper method to determine the color based on the mood score
-  Color _getMoodColor(int score) {
-    switch (score) {
-      case 5: return AppColors.accent;
-      case 4: return AppColors.success;
-      case 3: return AppColors.textSubtle;
-      case 2: return AppColors.warning;
-      case 1: return AppColors.error;
-      default: return AppColors.textDark;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Check-in History'),
-        backgroundColor: AppColors.primaryColor,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _checkinHistory.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24.0),
-                    child: Text(
-                      'No check-ins recorded yet. Start your journey from the Home screen!',
-                      style: TextStyle(color: AppColors.textSubtle, fontSize: 16),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: _checkinHistory.length,
-                  itemBuilder: (context, index) {
-                    final checkin = _checkinHistory[index];
-                    final formattedDate = DateFormat('EEEE, MMM d, yyyy h:mm a').format(checkin.timestamp);
-                    final moodIcon = _getMoodIcon(checkin.moodScore);
-                    final moodColor = _getMoodColor(checkin.moodScore);
-
-                    return Card(
-                      elevation: 2,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        leading: Icon(moodIcon, color: moodColor, size: 36),
-                        title: Text(
-                          formattedDate,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          checkin.notes.isNotEmpty 
-                            ? checkin.notes 
-                            : 'No notes recorded.',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.textSubtle),
-                        ),
-                        trailing: Text(
-                          'Score: ${checkin.moodScore}/5',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: moodColor),
-                        ),
-                        // --- UPDATED NAVIGATION LOGIC HERE ---
-                        onTap: () {
-                          // Navigate to the detail screen and pass the check-in data
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => CheckinDetailScreen(
-                                checkin: checkin,
-                                // Pass the refresh function so the detail screen can reload history if something changes
-                                onCheckinUpdated: _loadCheckinHistory, 
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                ),
-    );
   }
 }

@@ -1,119 +1,105 @@
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+// lib/services/checkin_service.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart'; // For @immutable
 
 // ----------------------------------------------------------------------
-// 1. UPDATED DATA MODEL (DailyCheckin)
-//    - Added 'id' field for unique identification
+// 1. DAILY CHECK-IN DATA MODEL
 // ----------------------------------------------------------------------
 
-// Model to structure the Check-in data
+/// Represents a single daily entry for mood tracking.
+@immutable
 class DailyCheckin {
-  final String id; // Unique ID for updating and deleting
+  final String id;
   final DateTime timestamp;
-  final int moodScore; // 1 (Worst) to 5 (Best)
+  final int moodScore; // 1 (worst) to 5 (best)
   final String notes;
 
-  DailyCheckin({
-    required this.id, // Must be included
+  const DailyCheckin({
+    required this.id,
     required this.timestamp,
     required this.moodScore,
-    required this.notes,
+    this.notes = '',
   });
 
-  // Convert a DailyCheckin object to a JSON map
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'timestamp': timestamp.toIso8601String(),
-        'moodScore': moodScore,
-        'notes': notes,
-      };
+  // Factory constructor for creating a DailyCheckin from a Firestore DocumentSnapshot
+  factory DailyCheckin.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>?;
 
-  // Create a DailyCheckin object from a JSON map
-  factory DailyCheckin.fromJson(Map<String, dynamic> json) {
+    if (data == null) {
+      throw Exception("Document data was null for ID: ${doc.id}");
+    }
+
+    // Convert Firestore Timestamp to Dart DateTime
+    Timestamp firestoreTimestamp = data['timestamp'] as Timestamp;
+
     return DailyCheckin(
-      id: json['id'] as String,
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      moodScore: json['moodScore'] as int,
-      notes: json['notes'] as String,
+      // CRITICAL: Use the Firestore document ID as the Checkin ID
+      id: doc.id,
+      timestamp: firestoreTimestamp.toDate(),
+      moodScore: data['moodScore'] as int? ?? 3,
+      notes: data['notes'] as String? ?? '',
     );
+  }
+
+  // Convert a DailyCheckin object into a JSON-like structure for Firestore
+  Map<String, dynamic> toFirestore() {
+    return {
+      'timestamp': Timestamp.fromDate(timestamp), // Save as Firestore Timestamp
+      'moodScore': moodScore,
+      'notes': notes,
+      // CRITICAL: Link to the current anonymous user's ID
+      'userId': FirebaseAuth.instance.currentUser!.uid, 
+    };
   }
 }
 
 // ----------------------------------------------------------------------
-// 2. UPDATED SERVICE CLASS (CheckinService)
-//    - Now uses a single String key to store the JSON-encoded list.
-//    - Includes save (create), get, update, and delete logic.
+// 2. CHECK-IN SERVICE (FIRESTORE INTEGRATION)
 // ----------------------------------------------------------------------
 
-// Service class to handle data persistence
 class CheckinService {
-  // Switched to storing as a single JSON string for easier update/delete operations
-  static const _historyKey = 'dailyCheckinHistory';
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
 
-  // Helper to fetch the current list of check-ins from storage
-  Future<List<DailyCheckin>> _fetchCurrentHistory(SharedPreferences prefs) async {
-    final String? jsonString = prefs.getString(_historyKey);
-    if (jsonString != null && jsonString.isNotEmpty) {
-      final List<dynamic> jsonList = jsonDecode(jsonString);
-      return jsonList.map((json) => DailyCheckin.fromJson(json)).toList();
+  // Private helper to get the collection reference for the current user
+  CollectionReference<Map<String, dynamic>> _checkinCollection() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      // This case should ideally not happen if the AuthGate is working
+      throw Exception('User is not authenticated. Cannot access Firestore.');
     }
-    return [];
+    // Data structure: users/{uid}/checkins/{checkinId}
+    return _firestore.collection('users').doc(uid).collection('checkins');
+  }
+
+  // CREATE (Save)
+  Future<void> saveCheckin(DailyCheckin checkin) async {
+    // Firestore generates the permanent ID
+    await _checkinCollection().add(checkin.toFirestore());
+  }
+
+  // UPDATE
+  Future<void> updateCheckin(DailyCheckin checkin) async {
+    // Uses the existing Firestore document ID (checkin.id)
+    await _checkinCollection().doc(checkin.id).update(checkin.toFirestore());
   }
   
-  // Helper to save the entire list back to storage
-  Future<void> _saveHistory(SharedPreferences prefs, List<DailyCheckin> history) async {
-    final List<Map<String, dynamic>> jsonList = history.map((e) => e.toJson()).toList();
-    await prefs.setString(_historyKey, jsonEncode(jsonList));
-  }
-
-
-  // ------------------------------------
-  // CRUD OPERATIONS
-  // ------------------------------------
-
-  // 1. CREATE (Saves a new check-in entry)
-  Future<void> saveCheckin(DailyCheckin checkin) async {
-    final prefs = await SharedPreferences.getInstance(); 
-    List<DailyCheckin> history = await _fetchCurrentHistory(prefs);
-    
-    // Add the new entry to the list
-    history.add(checkin);
-    
-    // Save the updated list
-    await _saveHistory(prefs, history);
-  }
-
-  // 2. READ (Retrieves all check-in entries)
-  Future<List<DailyCheckin>> getCheckinHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    return await _fetchCurrentHistory(prefs);
-  }
-
-  // 3. UPDATE (Updates an existing check-in entry by ID)
-  Future<void> updateCheckin(DailyCheckin updatedCheckin) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<DailyCheckin> history = await _fetchCurrentHistory(prefs);
-
-    // Find the index of the check-in to update
-    final index = history.indexWhere((checkin) => checkin.id == updatedCheckin.id);
-
-    if (index != -1) {
-      // Replace the old check-in with the updated one
-      history[index] = updatedCheckin;
-      // Save the modified list back to storage
-      await _saveHistory(prefs, history);
-    }
-  }
-
-  // 4. DELETE (Deletes a check-in entry by ID)
+  // DELETE
   Future<void> deleteCheckin(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<DailyCheckin> history = await _fetchCurrentHistory(prefs);
+    await _checkinCollection().doc(id).delete();
+  }
 
-    // Remove the item with the matching ID
-    history.removeWhere((checkin) => checkin.id == id);
-
-    // Save the updated list back to storage
-    await _saveHistory(prefs, history);
+  // READ (Stream all check-ins for the current user)
+  Stream<List<DailyCheckin>> getCheckinsStream() {
+    return _checkinCollection()
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => DailyCheckin.fromFirestore(doc))
+          .toList();
+    });
   }
 }

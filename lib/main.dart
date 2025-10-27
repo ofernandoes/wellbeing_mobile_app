@@ -3,7 +3,7 @@
 // --- IMPORTS ---
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // REQUIRED FOR StreamBuilder
 import 'package:flutter_tts/flutter_tts.dart'; 
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,15 +12,15 @@ import 'dart:math';
 
 
 // Local Imports 
-import 'package:wellbeing_mobile_app/entry_screen.dart'; 
+import 'package:wellbeing_mobile_app/entry_screen.dart'; // We assume this is DailyCheckinScreen
 import 'package:wellbeing_mobile_app/welcome_screen.dart';
 import 'package:wellbeing_mobile_app/widgets/forecast_day.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
 import 'package:wellbeing_mobile_app/firebase_options.dart'; 
-import 'package:wellbeing_mobile_app/services/auth_service.dart'; // 🔥 CRITICAL FIX: Auth Service Import
+import 'package:wellbeing_mobile_app/services/auth_service.dart';
 // --------------------------------------------------------------------------
 
-// --- MOCK DATA/GLOBAL CONSTANTS ---
+// --- MOCK DATA/GLOBAL CONSTANTS (No change needed here) ---
 const List<String> weatherSuggestions = [
  'It\'s a fresh start! Get outside for 15 minutes to soak up some sun.',
  'Great day for movement! Try a quick 30-minute walk or light jog.',
@@ -53,56 +53,39 @@ void main() async {
    debugPrint('Firebase Initialization Failed: $e');
  }
   
-  // 3. Check authentication status
-  final AuthService authService = AuthService();
-  final bool isLoggedIn = authService.getCurrentUser() != null;
-  
- // 4. Run the main app widget, passing the auth state
- runApp(MyApp(isLoggedIn: isLoggedIn));
+ // 3. Run the main app widget
+ runApp(const MyApp());
 }
 
 // --------------------------------------------------------------------------
 
 class MyApp extends StatelessWidget {
-  final bool isLoggedIn; 
   
-  const MyApp({super.key, required this.isLoggedIn});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Wellbeing App',
-      // ⚠️ THEME SETUP USING AppColors (Aqua Pop) ⚠️
+      // ⚠️ THEME SETUP (No change) ⚠️
       theme: ThemeData(
-        // 1. Primary Color
         primaryColor: AppColors.primaryColor,
-
-        // 2. Scaffold/Screen Background
         scaffoldBackgroundColor: AppColors.background,
-
-        // 3. Color Scheme Setup (Essential for Material 3 components)
         colorScheme: const ColorScheme.light(
           primary: AppColors.primaryColor, 
           secondary: AppColors.accent, 
           surface: AppColors.secondary, 
         ),
-
-
-        // 4. App Bar style
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.primaryColor,
           titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
           iconTheme: IconThemeData(color: Colors.white),
         ),
-      
-        // 5. Text Theme
         textTheme: Theme.of(context).textTheme.apply(
           bodyColor: AppColors.textDark,
           displayColor: AppColors.textDark,
         ),
-
         useMaterial3: true,
-        // ignore: deprecated_member_use
         primarySwatch: MaterialColor(AppColors.primaryColor.value, {
           50: AppColors.primaryColor.withAlpha((255 * 0.1).round()),
           100: AppColors.primaryColor.withAlpha((255 * 0.2).round()),
@@ -115,13 +98,30 @@ class MyApp extends StatelessWidget {
     
       debugShowCheckedModeBanner: false, 
       
-      // 🔥 FIX 1: Set initial screen based on isLoggedIn state
-      home: isLoggedIn ? const MainAppScaffold() : const WelcomeScreen(),
+      // 🔥 CRITICAL FIX 1: Use StreamBuilder to listen for Auth changes
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Show a simple loading screen while checking auth status
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator(color: AppColors.primaryColor)),
+            );
+          }
+          if (snapshot.hasData && snapshot.data != null) {
+            // User is logged in (authenticated)
+            // ⚠️ FIX: Use the constructor call for the stateful widget 
+            return MainAppScaffold(key: ValueKey(snapshot.data!.uid));
+          }
+          // User is NOT logged in or has logged out
+          return const WelcomeScreen();
+        },
+      ),
       
-      // 🔥 CRITICAL FIX 2: Define the routes map to fix the "Could not find generator" error
+      // 🔥 FIX 2: Define the routes map for named navigation
       routes: {
         '/welcome': (context) => const WelcomeScreen(),
-        // This is the required route for the WelcomeScreen button to navigate
+        // ⚠️ FIX: Correct constructor call for the route map
         '/home': (context) => const MainAppScaffold(), 
       }
     );
@@ -143,7 +143,7 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
 
  // 3. Define the widget options (The screens)
  static final List<Widget> _widgetOptions = <Widget>[
-   const HomeScreen(), // Index 0: Home
+   const HomeScreen(), // ⚠️ FIX: Added const back as this is StatelessWidget
    const Center(child: Text('Goals Screen', style: TextStyle(fontSize: 30))), // Index 1: Goals
    const Center(child: Text('Boost Screen', style: TextStyle(fontSize: 30))), // Index 2: Boost
  ];
@@ -515,12 +515,15 @@ class _HomeScreenState extends State<HomeScreen> {
    final prefs = await SharedPreferences.getInstance();
    // Use Firebase user ID as a fallback, but default to 'Fernando' for better UX
    final user = FirebaseAuth.instance.currentUser;
-   if (user != null && user.isAnonymous) {
-     _userName = 'Guest'; 
+   // 🔥 CRITICAL FIX: Ensure userName is only set if user is authenticated and not anonymous
+   if (user != null && !user.isAnonymous) {
+     _userName = prefs.getString('userName') ?? user.email?.split('@').first ?? 'User';
+   } else if (user != null && user.isAnonymous) {
+     _userName = 'Guest';
    } else {
      _userName = prefs.getString('userName') ?? 'Fernando';
    }
-  
+
    final now = DateTime.now();
   
    await prefs.setInt('lastVisitTimestamp', now.millisecondsSinceEpoch);
@@ -542,8 +545,6 @@ void _openNewEntry(BuildContext context) async {
  }
 
 
-
-
  // FIX: New Widget for the Check-in Chip
  Widget _buildNewEntryChip(BuildContext context) {
    return ActionChip(
@@ -551,7 +552,17 @@ void _openNewEntry(BuildContext context) async {
      avatar: const Icon(Icons.check_circle_outline, color: Colors.white), 
      // FIX: Changed label text to "Add Check-in"
      label: const Text('Add Check-in'),
-     onPressed: () => _openNewEntry(context),
+     onPressed: () {
+       // 🔥 CRITICAL PRE-CHECK: Check auth state before navigation!
+       if (FirebaseAuth.instance.currentUser == null) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('Please log in or register to add a check-in.'))
+         );
+         // Prevent navigation if not authenticated
+         return; 
+       }
+       _openNewEntry(context);
+     },
      backgroundColor: AppColors.primaryColor, // Light Aqua Blue
      labelStyle: const TextStyle(color: Colors.white),
    );
@@ -621,171 +632,177 @@ void _openNewEntry(BuildContext context) async {
  Widget build(BuildContext context) {
    const String supportiveSuggestionText = 'No check-ins yet — how are you feeling today?.';
   
-   return SingleChildScrollView( 
-     padding: const EdgeInsets.all(24.0),
-     child: Column(
-       crossAxisAlignment: CrossAxisAlignment.start,
-       children: <Widget>[
-         // --- A. DYNAMIC GREETING ---
-         Text(
-           'Welcome back, $_userName.', 
-           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryColor), 
-         ),
-         const SizedBox(height: 4),
-        
-         // Wrap the supportive text and the new entry chip in a Row
-         Row(
-           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-           crossAxisAlignment: CrossAxisAlignment.center,
-           children: [
-             const Text(
-               supportiveSuggestionText,
-               style: TextStyle(fontSize: 16, color: AppColors.textSubtle), 
+   return FutureBuilder<void>(
+     future: _initialLoadFuture,
+     builder: (context, snapshot) {
+       if (snapshot.connectionState == ConnectionState.waiting) {
+         return const Center(child: CircularProgressIndicator(color: AppColors.primaryColor));
+       }
+       
+       // Handle error state for initial load
+       if (snapshot.hasError) {
+         debugPrint('Error loading initial data: ${snapshot.error}');
+         return Center(child: Text('Error loading data: ${snapshot.error}'));
+       }
+       
+       return SingleChildScrollView( 
+         padding: const EdgeInsets.all(24.0),
+         child: Column(
+           crossAxisAlignment: CrossAxisAlignment.start,
+           children: <Widget>[
+             // --- A. DYNAMIC GREETING ---
+             Text(
+               'Welcome back, $_userName.', 
+               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryColor), 
              ),
-             const SizedBox(width: 8),
-             _buildNewEntryChip(context), // Check-in Chip placement
-           ],
-         ),
-         const SizedBox(height: 24),
-        
-         // --- B. WEATHER CARD ---
-         FutureBuilder<void>(
-           future: _initialLoadFuture,
-           builder: (context, snapshot) {
-             if (snapshot.connectionState == ConnectionState.waiting) {
-               return const Center(child: LinearProgressIndicator(minHeight: 10, color: AppColors.primaryColor)); 
-             } else {
-               return _buildWeatherCard();
-             }
-           },
-         ),
-         const Divider(height: 40, color: Colors.transparent), 
-
-
-         // --- C. ACTION PROMPT & CHIPS ---
-         const Text(
-           'What do you want to work on right now?', 
-           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textDark), 
-         ),
-         const SizedBox(height: 16),
-         Wrap(
-           spacing: 12.0,
-           runSpacing: 12.0,
-           children: [
-             ActionChip(
-               avatar: const Icon(Icons.track_changes, color: Colors.white),
-               label: const Text('Set/Work on a Goal'),
-               onPressed: () {
-                 final mainState = context.findAncestorStateOfType<_MainAppScaffoldState>();
-                 mainState?._onItemTapped(1); 
-               },
-               backgroundColor: AppColors.primaryColor, 
-               labelStyle: const TextStyle(color: Colors.white),
-             ),
-             ActionChip(
-               avatar: const Icon(Icons.flash_on, color: AppColors.textDark), 
-               label: const Text('Need a Quick Boost'),
-               onPressed: () {
-                 final mainState = context.findAncestorStateOfType<_MainAppScaffoldState>();
-                 mainState?._onItemTapped(2);
-               },
-               backgroundColor: AppColors.accent, 
-               labelStyle: const TextStyle(color: AppColors.textDark), 
-             ),
-             ActionChip(
-               avatar: const Icon(Icons.assessment, color: Colors.white),
-               label: const Text('Review My Progress'),
-               onPressed: () {
-                 ScaffoldMessenger.of(context).showSnackBar(
-                   const SnackBar(content: Text('Review Progress Feature Coming Soon!'))
-                 );
-               },
-               backgroundColor: AppColors.success, 
-               labelStyle: const TextStyle(color: Colors.white),
-             ),
-           ],
-         ),
-         const Divider(height: 40, color: Colors.transparent),
-
-
-         // --- D. QUOTE ---
-         const Text(
-           'Your Quote for the Day:',
-           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textDark), 
-         ),
-         const SizedBox(height: 8),
-         Card(
-           elevation: 0, 
-           color: AppColors.secondary, 
-           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-           child: Padding(
-             padding: const EdgeInsets.all(16.0),
-             child: Column(
-               crossAxisAlignment: CrossAxisAlignment.start,
+             const SizedBox(height: 4),
+            
+             // Wrap the supportive text and the new entry chip in a Row
+             Row(
+               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+               crossAxisAlignment: CrossAxisAlignment.center,
                children: [
-                 Text(
-                   _quote,
-                   style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: AppColors.textDark), 
+                 const Text(
+                   supportiveSuggestionText,
+                   style: TextStyle(fontSize: 16, color: AppColors.textSubtle), 
                  ),
-                 const SizedBox(height: 8),
-                 Row(
-                   mainAxisAlignment: MainAxisAlignment.end,
+                 const SizedBox(width: 8),
+                 _buildNewEntryChip(context), // Check-in Chip placement
+               ],
+             ),
+             const SizedBox(height: 24),
+            
+             // --- B. WEATHER CARD ---
+             _buildWeatherCard(),
+             const Divider(height: 40, color: Colors.transparent), 
+
+
+             // --- C. ACTION PROMPT & CHIPS ---
+             const Text(
+               'What do you want to work on right now?', 
+               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textDark), 
+             ),
+             const SizedBox(height: 16),
+             Wrap(
+               spacing: 12.0,
+               runSpacing: 12.0,
+               children: [
+                 ActionChip(
+                   avatar: const Icon(Icons.track_changes, color: Colors.white),
+                   label: const Text('Set/Work on a Goal'),
+                   onPressed: () {
+                     final mainState = context.findAncestorStateOfType<_MainAppScaffoldState>();
+                     mainState?._onItemTapped(1); 
+                   },
+                   backgroundColor: AppColors.primaryColor, 
+                   labelStyle: const TextStyle(color: Colors.white),
+                 ),
+                 ActionChip(
+                   avatar: const Icon(Icons.flash_on, color: AppColors.textDark), 
+                   label: const Text('Need a Quick Boost'),
+                   onPressed: () {
+                     final mainState = context.findAncestorStateOfType<_MainAppScaffoldState>();
+                     mainState?._onItemTapped(2);
+                   },
+                   backgroundColor: AppColors.accent, 
+                   labelStyle: const TextStyle(color: AppColors.textDark), 
+                 ),
+                 ActionChip(
+                   avatar: const Icon(Icons.assessment, color: Colors.white),
+                   label: const Text('Review My Progress'),
+                   onPressed: () {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       const SnackBar(content: Text('Review Progress Feature Coming Soon!'))
+                     );
+                   },
+                   backgroundColor: AppColors.success, 
+                   labelStyle: const TextStyle(color: Colors.white),
+                 ),
+               ],
+             ),
+             const Divider(height: 40, color: Colors.transparent),
+
+
+             // --- D. QUOTE ---
+             const Text(
+               'Your Quote for the Day:',
+               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textDark), 
+             ),
+             const SizedBox(height: 8),
+             Card(
+               elevation: 0, 
+               color: AppColors.secondary, 
+               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+               child: Padding(
+                 padding: const EdgeInsets.all(16.0),
+                 child: Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
                    children: [
                      Text(
-                       _author,
-                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primaryColor), 
+                       _quote,
+                       style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: AppColors.textDark), 
                      ),
+                     const SizedBox(height: 8),
+                     Row(
+                       mainAxisAlignment: MainAxisAlignment.end,
+                       children: [
+                         Text(
+                           _author,
+                           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primaryColor), 
+                         ),
+                       ],
+                     ),
+                     // Add text-to-speech option
+                     Align(
+                       alignment: Alignment.centerLeft,
+                       child: TextButton.icon(
+                         onPressed: () => flutterTts.speak(_quote),
+                         icon: const Icon(Icons.volume_up, size: 18, color: AppColors.textSubtle),
+                         label: const Text('Listen', style: TextStyle(color: AppColors.textSubtle)),
+                       ),
+                     )
                    ],
                  ),
-                 // Add text-to-speech option
-                 Align(
-                   alignment: Alignment.centerLeft,
-                   child: TextButton.icon(
-                     onPressed: () => flutterTts.speak(_quote),
-                     icon: const Icon(Icons.volume_up, size: 18, color: AppColors.textSubtle),
-                     label: const Text('Listen', style: TextStyle(color: AppColors.textSubtle)),
-                   ),
-                 )
-               ],
+               ),
              ),
-           ),
-         ),
-         const Divider(height: 40, color: Colors.transparent),
+             const Divider(height: 40, color: Colors.transparent),
 
 
-         // --- E. Goals Snapshot (PLACEHOLDER) ---
-         const Text(
-           'Your Current Focus:',
-           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textDark), 
-         ),
-         const SizedBox(height: 10),
-         Card(
-           elevation: 0,
-           color: AppColors.secondary, 
-           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-           child: const ListTile( 
-             title: Text(
-               'Learn a New Language',
-               style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryColor), 
+             // --- E. Goals Snapshot (PLACEHOLDER) ---
+             const Text(
+               'Your Current Focus:',
+               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textDark), 
              ),
-             subtitle: Column(
-               crossAxisAlignment: CrossAxisAlignment.start,
-               children: [
-                 Text('Target: 75% complete by December', style: TextStyle(color: AppColors.textDark)), 
-                 SizedBox(height: 4),
-               ],
+             const SizedBox(height: 10),
+             Card(
+               elevation: 0,
+               color: AppColors.secondary, 
+               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+               child: const ListTile( 
+                 title: Text(
+                   'Learn a New Language',
+                   style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryColor), 
+                 ),
+                 subtitle: Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                     Text('Target: 75% complete by December', style: TextStyle(color: AppColors.textDark)), 
+                     SizedBox(height: 4),
+                   ],
+                 ),
+                 isThreeLine: false,
+                 trailing: Icon(Icons.trending_up, color: AppColors.success), 
+               ),
              ),
-             isThreeLine: false,
-             trailing: Icon(Icons.trending_up, color: AppColors.success), 
-           ),
+            
+             // --- F. Bottom Padding to ensure scrolling works well ---
+             const SizedBox(height: 100),
+            
+            
+           ],
          ),
-        
-         // --- F. Bottom Padding to ensure scrolling works well ---
-         const SizedBox(height: 100),
-        
-        
-       ],
-     ),
+       );
+     }
    );
  }
 }

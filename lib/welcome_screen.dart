@@ -48,7 +48,7 @@ class WelcomeScreen extends StatelessWidget {
 
               // Title
               const Text(
-                'Welcome to Wellbeing Tracker',
+                'Welcome to I 2.0 - Personalised Wellbeing Coach',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -60,7 +60,7 @@ class WelcomeScreen extends StatelessWidget {
 
               // Description
               const Text(
-                'Log in or create a fresh account to begin tracking your mood, sleep, and activity.',
+                'Discover the Power of a Better You — Starting Today!',
                 style: TextStyle(
                   fontSize: 16,
                   color: AppColors.textDark,

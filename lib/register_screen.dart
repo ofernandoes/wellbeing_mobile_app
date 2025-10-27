@@ -78,7 +78,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 Text(
-                  'Join the Wellbeing Tracker',
+                  'Create Your Account',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryColor),
                 ),
                 const SizedBox(height: 30),

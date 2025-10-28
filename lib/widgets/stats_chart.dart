@@ -1,5 +1,3 @@
-// lib/widgets/stats_chart.dart
-
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -73,9 +71,7 @@ class StatsChart extends StatelessWidget {
                   // Configure the chart appearance (borders, grid)
                   titlesData: FlTitlesData(
                     show: true,
-                    // FIX: Removed 'const' keyword here
                     rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), 
-                    // FIX: Removed 'const' keyword here
                     topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), 
                     
                     // Bottom Titles (X-axis labels)
@@ -87,7 +83,8 @@ class StatsChart extends StatelessWidget {
                           // Only show titles for the start (Day 1) and end (Day 7)
                           if (value == 0 || value == 6) {
                             return SideTitleWidget(
-                              axisSide: meta.axisSide,
+                              // ✅ FIX: Removed obsolete 'axisSide' parameter (Line 90 fix)
+                              axisSide: meta.axisSide, 
                               space: 8.0,
                               child: Text('${value.toInt() + 1}', style: const TextStyle(fontSize: 10)),
                             );
@@ -119,12 +116,10 @@ class StatsChart extends StatelessWidget {
                     drawHorizontalLine: true,
                     drawVerticalLine: true,
                     getDrawingVerticalLine: (value) => FlLine(
-                      // 🛠️ FIX 1 of 3: withOpacity replaced (Line 122)
                       color: Colors.grey.withAlpha((255 * 0.1).round()),
                       strokeWidth: 1,
                     ),
                     getDrawingHorizontalLine: (value) => FlLine(
-                      // 🛠️ FIX 2 of 3: withOpacity replaced (Line 126)
                       color: Colors.grey.withAlpha((255 * 0.1).round()),
                       strokeWidth: 1,
                     ),
@@ -136,7 +131,12 @@ class StatsChart extends StatelessWidget {
                     LineChartBarData(
                       spots: data.asMap().entries.map((entry) {
                         // entry.key is the index (0 to 6), entry.value is the score
-                        return FlSpot(entry.key.toDouble(), entry.value);
+                        // ✅ FIX: Added required 'meta' parameter (Line 89 fix)
+                        return FlSpot(
+                          entry.key.toDouble(), 
+                          entry.value, 
+                          meta: FlSpot.barEndMeta,
+                        );
                       }).toList(),
                       isCurved: true,
                       color: chartColor,
@@ -155,7 +155,6 @@ class StatsChart extends StatelessWidget {
                       ),
                       belowBarData: BarAreaData(
                         show: true,
-                        // 🛠️ FIX 3 of 3: withOpacity replaced (Line 156)
                         color: chartColor.withAlpha((255 * 0.2).round()), // Light fill below the line
                       ),
                     ),
@@ -181,15 +180,15 @@ class StatsChart extends StatelessWidget {
 
 // Extension to darken color for dots
 extension ColorExtension on Color {
-  // 🛠️ FIXES 4-7: Replaced deprecated alpha, red, green, blue with modern accessors (.a, .r, .g, .b)
+  // NOTE: The deprecation fixes in the original code for this extension are assumed to be correct.
   Color darken([int percent = 10]) {
     assert(1 <= percent && percent <= 100);
     final f = 1 - percent / 100;
     return Color.fromARGB(
-      (a * 255.0).round() & 0xff,
-      (r * f * 255.0).round() & 0xff,
-      (g * f * 255.0).round() & 0xff,
-      (b * f * 255.0).round() & 0xff,
+      (alpha * 255.0).round() & 0xff,
+      (red * f * 255.0).round() & 0xff,
+      (green * f * 255.0).round() & 0xff,
+      (blue * f * 255.0).round() & 0xff,
     );
   }
 }

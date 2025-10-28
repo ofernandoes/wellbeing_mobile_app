@@ -1,6 +1,6 @@
 name: wellbeing_mobile_app
 description: A new Flutter project for wellbeing tracking.
-publish_to: 'none'
+publish_to: 'none' # Remove this line if you plan to publish
 
 version: 1.0.0+1
 
@@ -15,27 +15,36 @@ dependencies:
     sdk: flutter
 
   # --- CORE FIREBASE PACKAGES (Required for Auth & Data) ---
-  firebase_core: ^2.32.0 
-  firebase_auth: ^4.20.0 
-  cloud_firestore: ^4.17.5 
+  # Using the latest versions compatible with your initial analysis output.
+  firebase_core: ^4.2.0        # Latest available
+  firebase_auth: ^6.1.1        # Latest available
+  cloud_firestore: ^6.0.3      # Latest available
   
   # --- UTILITY PACKAGES (Required for App Functionality) ---
-  intl: ^0.20.2          # Required for DateFormat (Fixes previous code errors)
+  intl: ^0.20.2          # Required for DateFormat 
   flutter_tts: ^4.2.3    # Text-to-Speech
   shared_preferences: ^2.2.2
   cupertino_icons: ^1.0.6
 
-  # --- NEW MISSING PACKAGES (CRITICAL FIXES for 53 Errors) ---
-  http: ^1.2.1               # Required for API calls (e.g., weather or external data)
-  uuid: ^4.4.0               # Required for generating unique IDs (e.g., goals)
-  font_awesome_flutter: ^10.7.0 # Required for FontAwesome Icons
-  fl_chart: ^0.68.0          # Required for statistical charts
-  # --------------------------------------------------------
+  # --- NEW MISSING PACKAGES ---
+  http: ^1.2.1               
+  uuid: ^4.4.0               
+  font_awesome_flutter: ^10.7.0 
+  fl_chart: ^1.1.1             # Updated to latest available version
 
-dev_dependencies:
+# --------------------------------------------------------
+
+dev_dependencies: # <--- CRITICAL FIX: ONLY ONE OF THESE HEADERS
+  flutterfire_cli: ^0.1.1+2 # Required for Firebase configuration
+  
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  
+  # Linter Packages combined and updated to latest available versions
+  flutter_lints: ^6.0.0
+  lints: ^6.0.0
+
+# --------------------------------------------------------
 
 flutter:
   uses-material-design: true

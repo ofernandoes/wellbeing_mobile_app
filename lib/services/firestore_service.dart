@@ -1,66 +1,99 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:wellbeing_mobile_app/models/wellbeing_entry.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart'; // Import for debugPrint
 
 class FirestoreService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Helper to get the current authenticated user's ID
-  String get currentUserId {
-    return _auth.currentUser?.uid ?? '';
+  String? get currentUserId {
+    return _auth.currentUser?.uid;
   }
 
-  // Method to save a new wellbeing entry
-  Future<void> saveEntry(WellbeingEntry entry) async {
-    final userId = currentUserId;
-    if (userId.isEmpty) {
-      throw Exception("User is not authenticated. Cannot save entry.");
+  Future<bool> hasUserSubmittedToday(String? userId) async {
+    if (userId == null) {
+      return false;
     }
-    
-    // Use the toFirestore method from the model
-    await _firestore.collection('wellbeing_entries').add(entry.toFirestore());
-  }
 
-  // Method to check if the user has already submitted an entry today
-  Future<bool> hasUserSubmittedToday(String userId) async {
-    if (userId.isEmpty) return false;
-
-    // Start of today (midnight)
     final now = DateTime.now();
-    final startOfToday = DateTime(now.year, now.month, now.day);
+    final startOfDay = DateTime(now.year, now.month, now.day);
 
-    // Query for entries by this user since the start of today
-    final snapshot = await _firestore
-        .collection('wellbeing_entries')
-        .where('userId', isEqualTo: userId)
-        .where('timestamp', isGreaterThanOrEqualTo: startOfToday)
-        .limit(1)
-        .get();
-
-    return snapshot.docs.isNotEmpty;
+    try {
+      final snapshot = await _db
+          .collection('users')
+          .doc(userId)
+          .collection('checkins')
+          .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
+          .limit(1)
+          .get();
+          
+      return snapshot.docs.isNotEmpty;
+    } on FirebaseException catch (e) {
+      debugPrint('Error checking submission status: ${e.message}');
+      return true; 
+    }
   }
 
-  // NEW: Method to get a real-time stream of wellbeing entries
-  Stream<List<WellbeingEntry>> getEntriesStream() {
-    final userId = currentUserId;
-    if (userId.isEmpty) {
-      // Return an empty stream if no user is logged in
-      return Stream.value([]); 
+  Future<void> saveEntry(Map<String, dynamic> entry) async {
+    final userId = currentUserId; 
+    
+    if (userId == null) {
+      throw Exception("User is not authenticated. Cannot save data.");
     }
 
-    return _firestore
-        .collection('wellbeing_entries')
-        .where('userId', isEqualTo: userId)
-        // Order by timestamp descending (most recent first)
-        .orderBy('timestamp', descending: true) 
-        // Snapshot stream gives real-time updates
-        .snapshots() 
-        .map((snapshot) {
-      // Map the Firestore QuerySnapshot to a List of WellbeingEntry models
-      return snapshot.docs.map((doc) {
-        return WellbeingEntry.fromFirestore(doc.data(), doc.id);
-      }).toList();
-    });
+    try {
+      final userCheckinsRef = _db.collection('users').doc(userId).collection('checkins');
+      final userName = await _getUserNameFromPrefs() ?? 'User';
+
+      await userCheckinsRef.add(<String, dynamic>{
+        ...entry, 
+        'timestamp': FieldValue.serverTimestamp(),
+        'userName': userName, 
+      });
+      debugPrint('Check-in saved successfully for user $userId');
+    } on FirebaseException catch (e) {
+      debugPrint('Error saving entry: ${e.message}');
+      rethrow; 
+    } catch (e) {
+      debugPrint('Unexpected error saving entry: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> saveUserDetails({
+    required String userName,
+    required int age,
+    required String goal,
+  }) async {
+    final userId = currentUserId;
+    
+    if (userId == null) {
+      throw Exception("User is not authenticated. Cannot save details.");
+    }
+
+    try {
+      final userProfileRef = _db.collection('users').doc(userId).collection('profile').doc('details');
+
+      await userProfileRef.set(<String, dynamic>{
+        'userName': userName,
+        'age': age,
+        'primaryGoal': goal,
+        'createdAt': FieldValue.serverTimestamp(),
+      }, const SetOptions(merge: true));
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userName', userName);
+      
+      debugPrint('User details saved successfully for user $userId');
+    } on FirebaseException catch (e) {
+      debugPrint('Error saving user details: ${e.message}');
+      rethrow; 
+    }
+  }
+
+  Future<String?> _getUserNameFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userName');
   }
 }

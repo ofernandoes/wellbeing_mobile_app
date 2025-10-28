@@ -1,8 +1,8 @@
-// lib/user_details_screen.dart
+// lib/screens/user_details_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:wellbeing_mobile_app/services/firestore_service.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-import 'package:wellbeing_mobile_app/services/firestore_service.dart'; // To save the data
 
 class UserDetailsScreen extends StatefulWidget {
   const UserDetailsScreen({super.key});
@@ -13,56 +13,41 @@ class UserDetailsScreen extends StatefulWidget {
 
 class _UserDetailsScreenState extends State<UserDetailsScreen> {
   final _formKey = GlobalKey<FormState>();
-  String _firstName = '';
-  String _lastName = '';
-  String? _gender;
-  String _phoneNumber = '';
-  String _address = '';
-  String _postCode = '';
-  String _city = '';
-  String _country = '';
+  final FirestoreService _firestoreService = FirestoreService();
+
+  String _userName = '';
+  String _ageInput = ''; 
+  String _goal = '';
   bool _isLoading = false;
 
-  final List<String> _genderOptions = ['Male', 'Female', 'Other', 'Prefer not to say'];
-
-  Future<void> _saveUserDetails() async {
+  Future<void> _saveDetails() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
+      
+      final int age = int.tryParse(_ageInput) ?? 0;
+
       setState(() {
         _isLoading = true;
       });
 
-      final userDetails = {
-        'firstName': _firstName.trim(),
-        'lastName': _lastName.trim(),
-        'gender': _gender,
-        'phoneNumber': _phoneNumber.trim(),
-        'address': _address.trim(),
-        'postCode': _postCode.trim(),
-        'city': _city.trim(),
-        'country': _country.trim(),
-        'registrationDate': DateTime.now().toIso8601String(),
-      };
-
       try {
-        // 🔥 CRITICAL: Call a new method in FirestoreService to save user metadata
-        await FirestoreService().saveUserDetails(userDetails);
-        
-        // Navigate to the main app screen after successful save
+        await _firestoreService.saveUserDetails(
+          userName: _userName,
+          age: age,
+          goal: _goal,
+        );
+
         if (mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Details saved successfully!')),
+          );
+          Navigator.of(context).pushReplacementNamed('/home'); 
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to save details. Please try again. Error: $e'),
-              backgroundColor: AppColors.error,
-            ),
+            SnackBar(content: Text('Failed to save details: ${e.toString()}')),
           );
-        }
-      } finally {
-        if (mounted) {
           setState(() {
             _isLoading = false;
           });
@@ -85,79 +70,81 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               const Text(
-                'Tell us a bit more about you!',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryColor),
+                'Tell us a little about yourself to personalize your wellness journey.',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 30),
+
+              TextFormField(
+                decoration: const InputDecoration(
+                  labelText: 'Your Name/Nickname',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a name.';
+                  }
+                  return null;
+                },
+                onSaved: (value) {
+                  _userName = value ?? '';
+                },
+              ),
+              const SizedBox(height: 20),
+              
+              TextFormField(
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Your Age',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.cake),
+                ),
+                validator: (value) {
+                  if (value == null || int.tryParse(value) == null || int.parse(value) <= 0) {
+                    return 'Please enter a valid age.';
+                  }
+                  return null;
+                },
+                onSaved: (value) {
+                  _ageInput = value ?? '';
+                },
               ),
               const SizedBox(height: 20),
 
-              // Name and Last Name
-              Row(
-                children: [
-                  Expanded(child: _buildTextField('First Name', (value) => _firstName = value!)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _buildTextField('Last Name', (value) => _lastName = value!)),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Gender Dropdown
-              DropdownButtonFormField<String>(
+              TextFormField(
                 decoration: const InputDecoration(
-                  labelText: 'Gender',
+                  labelText: 'Your Primary Wellness Goal',
+                  hintText: 'e.g., Reduce stress, improve sleep, exercise more',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.people_alt, color: AppColors.primaryColor),
+                  prefixIcon: Icon(Icons.track_changes),
                 ),
-                value: _gender,
-                items: _genderOptions.map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _gender = newValue;
-                  });
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your goal.';
+                  }
+                  return null;
                 },
-                onSaved: (value) => _gender = value,
-                validator: (value) => value == null ? 'Please select your gender' : null,
+                onSaved: (value) {
+                  _goal = value ?? '';
+                },
               ),
-              const SizedBox(height: 16),
-
-              // Phone Number
-              _buildTextField('Phone Number', (value) => _phoneNumber = value!, keyboardType: TextInputType.phone),
-              const SizedBox(height: 16),
-
-              // Address
-              _buildTextField('Address', (value) => _address = value!),
-              const SizedBox(height: 16),
-
-              // Post Code, City
-              Row(
-                children: [
-                  Expanded(child: _buildTextField('Post Code', (value) => _postCode = value!, keyboardType: TextInputType.streetAddress)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _buildTextField('City', (value) => _city = value!)),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Country
-              _buildTextField('Country', (value) => _country = value!),
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
 
               ElevatedButton(
-                onPressed: _isLoading ? null : _saveUserDetails,
+                onPressed: _isLoading ? null : _saveDetails,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: AppColors.primaryColor, 
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text(
-                        'Complete Profile',
-                        style: TextStyle(fontSize: 18, color: AppColors.textDark, fontWeight: FontWeight.bold),
+                        'Save Details and Continue',
+                        style: TextStyle(fontSize: 18, color: Colors.white),
                       ),
               ),
             ],
@@ -165,33 +152,5 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildTextField(String label, FormFieldSetter<String> onSaved, {TextInputType keyboardType = TextInputType.text}) {
-    return TextFormField(
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        prefixIcon: _getIcon(label),
-      ),
-      keyboardType: keyboardType,
-      onSaved: onSaved,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return '$label cannot be empty';
-        }
-        return null;
-      },
-    );
-  }
-  
-  Icon _getIcon(String label) {
-    if (label.contains('Name')) return const Icon(Icons.person, color: AppColors.primaryColor);
-    if (label.contains('Phone')) return const Icon(Icons.phone, color: AppColors.primaryColor);
-    if (label.contains('Address')) return const Icon(Icons.location_on, color: AppColors.primaryColor);
-    if (label.contains('Post Code')) return const Icon(Icons.local_post_office, color: AppColors.primaryColor);
-    if (label.contains('City')) return const Icon(Icons.location_city, color: AppColors.primaryColor);
-    if (label.contains('Country')) return const Icon(Icons.flag, color: AppColors.primaryColor);
-    return const Icon(Icons.text_fields, color: AppColors.primaryColor);
   }
 }

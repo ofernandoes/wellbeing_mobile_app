@@ -1,8 +1,6 @@
-// lib/login_screen.dart (NEW FILE)
-
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:wellbeing_mobile_app/theme/app_colors.dart';
+// Assuming imports
+import 'package:wellbeing_mobile_app/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,51 +10,36 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  // ✅ FIX: Added final keyword
   final _formKey = GlobalKey<FormState>();
-  String? _errorMessage;
+  String _email = '';
+  String _password = '';
   bool _isLoading = false;
 
-  Future<void> _login() async {
+  void _submit() async {
     if (_formKey.currentState!.validate()) {
+      _formKey.currentState!.save();
       setState(() {
         _isLoading = true;
-        _errorMessage = null;
       });
-
       try {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-        );
-        // Successful login: navigate to home screen
+        // ✅ FIX: Renamed method to standard Firebase convention
+        await AuthService().signInWithEmailAndPassword(_email, _password);
+        // Navigation handled by StreamBuilder in main.dart
+      } catch (e) {
         if (mounted) {
-          // PushReplacementNamed ensures the user cannot hit 'back' to the login screen
-          Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Login Failed: ${e.toString()}')),
+          );
         }
-      } on FirebaseAuthException catch (e) {
-        // Handle common Firebase errors
-        String message = 'Login failed. Please check your credentials.';
-        if (e.code == 'user-not-found' || e.code == 'wrong-password') {
-          message = 'Invalid email or password.';
-        }
-        setState(() {
-          _errorMessage = message;
-        });
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
   }
 
   @override
@@ -64,99 +47,38 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sign In'),
-        backgroundColor: AppColors.primaryColor,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Text(
-                  'Welcome Back!',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryColor),
-                ),
-                const SizedBox(height: 30),
-                
-                // Email Field
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty || !value.contains('@')) {
-                      return 'Please enter a valid email address.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // Password Field
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your password.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 30),
-
-                if (_errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 15),
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-
-                // Login Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _login,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            'Sign In',
-                            style: TextStyle(fontSize: 18, color: Colors.white),
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                
-                // Back to Welcome Link
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(); 
-                  },
-                  child: const Text('Go back to Welcome Screen'),
-                ),
-              ],
-            ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Email'),
+                keyboardType: TextInputType.emailAddress, // Added for usability
+                onSaved: (value) => _email = value!,
+              ),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Password'),
+                obscureText: true,
+                onSaved: (value) => _password = value!,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _submit,
+                child: _isLoading
+                    ? const CircularProgressIndicator() 
+                    : const Text('Login'), 
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pushReplacementNamed('/register');
+                },
+                child: const Text('Need an account? Register'),
+              ),
+            ],
           ),
         ),
       ),

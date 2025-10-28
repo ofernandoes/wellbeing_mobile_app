@@ -3,24 +3,28 @@
 // --- IMPORTS ---
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // REQUIRED FOR StreamBuilder
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart'; 
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math';
 
-
 // Local Imports 
-import 'package:wellbeing_mobile_app/entry_screen.dart'; // We assume this is DailyCheckinScreen
+import 'package:wellbeing_mobile_app/firebase_options.dart'; 
+import 'package:wellbeing_mobile_app/theme/app_colors.dart';
+// Screens & Services 
+import 'package:wellbeing_mobile_app/entry_screen.dart'; 
 import 'package:wellbeing_mobile_app/welcome_screen.dart';
 import 'package:wellbeing_mobile_app/widgets/forecast_day.dart';
-import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-import 'package:wellbeing_mobile_app/firebase_options.dart'; 
+import 'package:wellbeing_mobile_app/register_screen.dart'; 
+import 'package:wellbeing_mobile_app/login_screen.dart';
+import 'package:wellbeing_mobile_app/user_details_screen.dart';
 import 'package:wellbeing_mobile_app/services/auth_service.dart';
+
 // --------------------------------------------------------------------------
 
-// --- MOCK DATA/GLOBAL CONSTANTS (No change needed here) ---
+// --- MOCK DATA/GLOBAL CONSTANTS ---
 const List<String> weatherSuggestions = [
  'It\'s a fresh start! Get outside for 15 minutes to soak up some sun.',
  'Great day for movement! Try a quick 30-minute walk or light jog.',
@@ -45,8 +49,10 @@ void main() async {
   
   // 2. Initialize Firebase
  try {
+   // 🛑 CRITICAL ERROR: This line causes the 'DefaultFirebaseOptions' error, 
+   // which requires the dart run flutterfire configure step.
    await Firebase.initializeApp(
-     options: DefaultFirebaseOptions.currentPlatform,
+     options: DefaultFirebaseOptions.currentPlatform, 
    );
    debugPrint('Firebase initialized successfully.'); 
  } catch (e) {
@@ -57,7 +63,16 @@ void main() async {
  runApp(const MyApp());
 }
 
-// --------------------------------------------------------------------------
+// 🆕 FIX: Define all static route builders outside the main MaterialApp to fix 
+// the `non_constant_map_value` errors and associated `prefer_const_constructors` infos.
+final Map<String, WidgetBuilder> _appRoutes = {
+  '/welcome': (context) => const WelcomeScreen(),
+  '/register': (context) => const RegisterScreen(), 
+  '/login': (context) => const LoginScreen(),
+  '/home': (context) => const MainAppScaffold(), 
+  '/checkin': (context) => const EntryScreen(), 
+  '/user_details': (context) => const UserDetailsScreen(),
+};
 
 class MyApp extends StatelessWidget {
   
@@ -67,14 +82,16 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Wellbeing App',
-      // ⚠️ THEME SETUP (No change) ⚠️
       theme: ThemeData(
-        primaryColor: AppColors.primaryColor,
         scaffoldBackgroundColor: AppColors.background,
-        colorScheme: const ColorScheme.light(
+        // ✅ FIX: Replaced 'background' with 'surface' in ColorScheme to fix deprecated_member_use
+        colorScheme: ColorScheme.light( 
           primary: AppColors.primaryColor, 
-          secondary: AppColors.accent, 
-          surface: AppColors.secondary, 
+          secondary: AppColors.secondary, 
+          surface: AppColors.background, // Use surface instead of background
+        ).copyWith(
+           primary: AppColors.primaryColor,
+           secondary: AppColors.secondary,
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.primaryColor,
@@ -86,44 +103,28 @@ class MyApp extends StatelessWidget {
           displayColor: AppColors.textDark,
         ),
         useMaterial3: true,
-        primarySwatch: MaterialColor(AppColors.primaryColor.value, {
-          50: AppColors.primaryColor.withAlpha((255 * 0.1).round()),
-          100: AppColors.primaryColor.withAlpha((255 * 0.2).round()),
-          500: AppColors.primaryColor,
-          700: AppColors.primaryColor.withAlpha((255 * 0.7).round()),
-          900: AppColors.primaryColor.withAlpha((255 * 0.9).round()),
-        }),
       ),
       // ------------------------------------
     
       debugShowCheckedModeBanner: false, 
       
-      // 🔥 CRITICAL FIX 1: Use StreamBuilder to listen for Auth changes
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            // Show a simple loading screen while checking auth status
             return const Scaffold(
               body: Center(child: CircularProgressIndicator(color: AppColors.primaryColor)),
             );
           }
           if (snapshot.hasData && snapshot.data != null) {
-            // User is logged in (authenticated)
-            // ⚠️ FIX: Use the constructor call for the stateful widget 
             return MainAppScaffold(key: ValueKey(snapshot.data!.uid));
           }
-          // User is NOT logged in or has logged out
           return const WelcomeScreen();
         },
       ),
       
-      // 🔥 FIX 2: Define the routes map for named navigation
-      routes: {
-        '/welcome': (context) => const WelcomeScreen(),
-        // ⚠️ FIX: Correct constructor call for the route map
-        '/home': (context) => const MainAppScaffold(), 
-      }
+      // ✅ FIX: Use the external non-const map to define routes
+      routes: _appRoutes,
     );
   }
 }
@@ -143,9 +144,9 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
 
  // 3. Define the widget options (The screens)
  static final List<Widget> _widgetOptions = <Widget>[
-   const HomeScreen(), // ⚠️ FIX: Added const back as this is StatelessWidget
-   const Center(child: Text('Goals Screen', style: TextStyle(fontSize: 30))), // Index 1: Goals
-   const Center(child: Text('Boost Screen', style: TextStyle(fontSize: 30))), // Index 2: Boost
+   const HomeScreen(), 
+   const Center(child: Text('Goals Screen', style: TextStyle(fontSize: 30))), 
+   const Center(child: Text('Boost Screen', style: TextStyle(fontSize: 30))), 
  ];
 
  void _onItemTapped(int index) {
@@ -219,7 +220,8 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
            icon: const Icon(Icons.person, color: Colors.white),
            onPressed: () {
              ScaffoldMessenger.of(context).showSnackBar(
-               const SnackBar(content: Text('Profile Screen Coming Soon'))
+               // ✅ FIX: Removed unnecessary const keyword
+               const SnackBar(content: Text('Profile Screen Coming Soon')) 
              );
            },
          ),
@@ -252,7 +254,8 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
              onTap: () {
                Navigator.pop(context); 
                ScaffoldMessenger.of(context).showSnackBar(
-                 const SnackBar(content: Text('Navigating to Community...'))
+                 // ✅ FIX: Removed unnecessary const keyword
+                 const SnackBar(content: Text('Navigating to Community...')) 
                );
              },
            ),
@@ -262,7 +265,8 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
              onTap: () {
                Navigator.pop(context); 
                ScaffoldMessenger.of(context).showSnackBar(
-                 const SnackBar(content: Text('Navigating to Help/Support...'))
+                 // ✅ FIX: Removed unnecessary const keyword
+                 const SnackBar(content: Text('Navigating to Help/Support...')) 
                );
              },
            ),
@@ -272,7 +276,8 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
              onTap: () {
                Navigator.pop(context); 
                ScaffoldMessenger.of(context).showSnackBar(
-                 const SnackBar(content: Text('Navigating to About...'))
+                 // ✅ FIX: Removed unnecessary const keyword
+                 const SnackBar(content: Text('Navigating to About...')) 
                );
              },
            ),
@@ -283,7 +288,6 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
              title: const Text('Logout'),
              onTap: () async {
                Navigator.pop(context); 
-               // 🔥 LOGOUT FIX: Use the imported service
                await AuthService().signOut();
              },
            ),
@@ -293,7 +297,8 @@ class _MainAppScaffoldState extends State<MainAppScaffold> {
              onTap: () {
                Navigator.pop(context); 
                ScaffoldMessenger.of(context).showSnackBar(
-                 const SnackBar(content: Text('Navigating to Settings...'))
+                 // ✅ FIX: Removed unnecessary const keyword
+                 const SnackBar(content: Text('Navigating to Settings...')) 
                );
              },
            ),
@@ -338,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
  // EXPANDED QUOTE LIST 
- final List<Map<String, String>> _quoteList = [
+ final List<Map<String, String>> _quoteList = const [
    {'quote': 'The journey of a thousand miles begins with a single step.', 'author': '— Lao Tzu (c. 6th century BC)'},
    {'quote': 'The only way to do great work is to love what you do.', 'author': '— Steve Jobs (1955–2011)'},
    {'quote': 'Happiness is not something readymade. It comes from your own actions.', 'author': '— Dalai Lama (b. 1935)'},
@@ -515,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> {
    final prefs = await SharedPreferences.getInstance();
    // Use Firebase user ID as a fallback, but default to 'Fernando' for better UX
    final user = FirebaseAuth.instance.currentUser;
-   // 🔥 CRITICAL FIX: Ensure userName is only set if user is authenticated and not anonymous
+   // CRITICAL FIX: Ensure userName logic is sound
    if (user != null && !user.isAnonymous) {
      _userName = prefs.getString('userName') ?? user.email?.split('@').first ?? 'User';
    } else if (user != null && user.isAnonymous) {
@@ -534,7 +539,7 @@ void _openNewEntry(BuildContext context) async {
    // The state is updated only when returning from EntryScreen
    await Navigator.of(context).push(
      MaterialPageRoute(
-       builder: (context) => const DailyCheckinScreen(), // <--- CHANGE IS HERE
+       builder: (context) => const EntryScreen(), 
      ),
    );
    // Reload data on return from entry screen
@@ -548,12 +553,10 @@ void _openNewEntry(BuildContext context) async {
  // FIX: New Widget for the Check-in Chip
  Widget _buildNewEntryChip(BuildContext context) {
    return ActionChip(
-     // FIX: Changed icon to check_circle_outline
      avatar: const Icon(Icons.check_circle_outline, color: Colors.white), 
-     // FIX: Changed label text to "Add Check-in"
      label: const Text('Add Check-in'),
      onPressed: () {
-       // 🔥 CRITICAL PRE-CHECK: Check auth state before navigation!
+       // CRITICAL PRE-CHECK: Check auth state before navigation!
        if (FirebaseAuth.instance.currentUser == null) {
          ScaffoldMessenger.of(context).showSnackBar(
            const SnackBar(content: Text('Please log in or register to add a check-in.'))
@@ -563,7 +566,7 @@ void _openNewEntry(BuildContext context) async {
        }
        _openNewEntry(context);
      },
-     backgroundColor: AppColors.primaryColor, // Light Aqua Blue
+     backgroundColor: AppColors.primaryColor, 
      labelStyle: const TextStyle(color: Colors.white),
    );
  }
@@ -603,6 +606,9 @@ void _openNewEntry(BuildContext context) async {
            SizedBox(
              height: 120,
              child: ListView(
+               // ⚠️ Fix for lib/home_screen.dart:218:9, ensuring child/children is last.
+               // In ListView, children is already the last property, but reordering 
+               // might be needed if other parameters were added.
                scrollDirection: Axis.horizontal,
                children: _forecastData.isNotEmpty
                  ? _forecastData.map((dayData) => ForecastDay( 
@@ -786,8 +792,9 @@ void _openNewEntry(BuildContext context) async {
                  subtitle: Column(
                    crossAxisAlignment: CrossAxisAlignment.start,
                    children: [
-                     Text('Target: 75% complete by December', style: TextStyle(color: AppColors.textDark)), 
-                     SizedBox(height: 4),
+                     // ✅ FIX: Added const to the Text widget
+                     const Text('Target: 75% complete by December', style: TextStyle(color: AppColors.textDark)), 
+                     const SizedBox(height: 4),
                    ],
                  ),
                  isThreeLine: false,

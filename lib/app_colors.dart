@@ -1,11 +1,12 @@
-// lib/app_colors.dart
+// lib/home/app_colors.dart
+
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color primaryColor = Color(0xFF4B89AC);  // <--- Primary
-  static const Color secondary = Color(0xFFEDF2F4);
-  static const Color background = Color(0xFFFFFFFF);
-  static const Color accent = Color(0xFFEFB059);        // <--- Accent
-  static const Color textDark = Color(0xFF1E1E1E);
-  static const Color textSubtle = Color(0xFF707070);
+  static const Color primaryColor = Color(0xFF673AB7); // Deep Purple
+  static const Color accentColor = Color(0xFFFFC107); // Amber
+  static const Color backgroundColor = Color(0xFFF5F5F5); // Light Gray
+  static const Color cardColor = Colors.white;
+  static const Color textColor = Color(0xFF333333);
+  static const Color subtleTextColor = Color(0xFF757575);
 }

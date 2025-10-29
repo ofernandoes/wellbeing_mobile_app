@@ -2,10 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-import 'package:intl/intl.dart'; 
+import 'package:intl/intl.dart';
 // ----------------------------------------------------
-// CRITICAL FIX: Update Import to use the correct filename: daily_checkin_model.dart
-import 'package:wellbeing_mobile_app/models/daily_checkin_model.dart';
+// CRITICAL FIXES: Add Imports for Model and Service
+import 'package:wellbeing_mobile_app/models/daily_checkin.dart';
 import 'package:wellbeing_mobile_app/services/checkin_service.dart';
 // ----------------------------------------------------
 
@@ -13,7 +13,6 @@ class DailyCheckinScreen extends StatefulWidget {
   // Existing checkin passed in if editing an existing entry
   final DailyCheckin? checkin; 
 
-  // FIX: Constructor now takes DailyCheckin as a type
   const DailyCheckinScreen({super.key, this.checkin});
 
   @override
@@ -33,7 +32,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
     // If we are editing an existing checkin, populate the state
     if (widget.checkin != null) {
       _moodScore = widget.checkin!.moodScore;
-      _noteController.text = widget.checkin!.note; // FIX: Use 'note' property
+      _noteController.text = widget.checkin!.note;
       _selectedActivities.addAll(widget.checkin!.activities);
     }
   }
@@ -41,11 +40,12 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
   // Helper method to save or update the check-in
   void _saveCheckin() async {
     // 1. Get the current user ID (handled by CheckinService internally, but good for context)
-    const String userIdPlaceholder = 'ofernandoes-test-user-id';
+    // For this mock, we will use a placeholder
+    const String userIdPlaceholder = 'ofernandoes-test-user-id'; // Replace with actual user ID logic if outside service
 
     // 2. Create the DailyCheckin object
     final DailyCheckin newOrUpdatedCheckin = DailyCheckin(
-      // FIX: Use the constructor correctly
+      // CRITICAL FIX: Use the constructor correctly
       id: widget.checkin?.id, // Keep the ID if updating
       userId: userIdPlaceholder, 
       date: widget.checkin?.date ?? DateTime.now(), // Keep original date if updating, otherwise use now
@@ -60,6 +60,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
         await _checkinService.addCheckin(newOrUpdatedCheckin);
       } else {
         // Updating an EXISTING checkin
+        // CRITICAL FIX: Called the correct method on the service instance
         await _checkinService.updateCheckin(newOrUpdatedCheckin); 
       }
 
@@ -110,7 +111,7 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            _buildActivitySelector(), // FIX: This now uses the globally defined checkinActivities
+            _buildActivitySelector(),
             const SizedBox(height: 30),
 
             // --- 3. NOTE ---
@@ -216,7 +217,6 @@ class _DailyCheckinScreenState extends State<DailyCheckinScreen> {
     return Wrap(
       spacing: 10.0,
       runSpacing: 10.0,
-      // FIX: Uses the globally defined constant from daily_checkin_model.dart
       children: checkinActivities.map((activity) {
         final label = activity['label'] as String;
         final isSelected = _selectedActivities.contains(label);

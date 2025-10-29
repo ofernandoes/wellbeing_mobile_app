@@ -3,106 +3,81 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-import '../services/checkin_service.dart';
-import 'daily_checkin_screen.dart'; // Used for editing existing check-ins
+// CRITICAL FIX: Update Imports to correct file names
+import 'package:wellbeing_mobile_app/models/daily_checkin_model.dart';
+import 'package:wellbeing_mobile_app/services/checkin_service.dart';
+import 'package:wellbeing_mobile_app/daily_checkin_screen.dart'; // Screen to open for editing
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Instantiate the service to access the Firestore stream
-    final CheckinService checkinService = CheckinService();
-    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Check-in History'),
-        backgroundColor: AppColors.primaryColor,
+        title: const Text('My Check-in History'),
       ),
-      
-      // CRITICAL: Use StreamBuilder to listen for all check-ins in real-time
+      // Use a StreamBuilder to display the real-time list of check-ins
       body: StreamBuilder<List<DailyCheckin>>(
-        // Call the new stream function from the Firestore service
-        stream: checkinService.getCheckinsStream(),
+        // CRITICAL FIX: Calling getCheckinsStream() correctly, and casting the type
+        stream: CheckinService().getCheckinsStream(), 
         builder: (context, snapshot) {
-          
+          // 1. Loading State
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          // 2. Error State
           if (snapshot.hasError) {
             return Center(child: Text('Error loading history: ${snapshot.error}'));
           }
-          
-          // Data is ready (list of DailyCheckin objects)
-          final List<DailyCheckin> history = snapshot.data ?? [];
-          
-          if (history.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.history_toggle_off, size: 60, color: AppColors.textSubtle),
-                    const SizedBox(height: 10),
-                    Text(
-                      'No check-ins recorded yet.',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 10),
-                    const Text('Start tracking your mood by creating your first daily check-in.'),
-                  ],
-                ),
-              ),
+          // 3. No Data (Empty) State
+          final checkins = snapshot.data;
+          if (checkins == null || checkins.isEmpty) {
+            return const Center(
+              child: Text('No check-ins recorded yet!'),
             );
           }
-          
-          return ListView.builder(
-            itemCount: history.length,
-            itemBuilder: (context, index) {
-              final checkin = history[index];
-              // DateFormat is now available because you added the 'intl' package
-              final formattedDate = DateFormat('EEEE, MMM d, yyyy h:mm a').format(checkin.timestamp);
-              
-              // Map mood score to an icon/label
-              final moodText = checkin.moodScore == 5 ? 'Great' : 
-                               checkin.moodScore == 4 ? 'Good' : 
-                               checkin.moodScore == 3 ? 'Okay' : 
-                               checkin.moodScore == 2 ? 'Bad' : 'Awful';
-              final moodColor = checkin.moodScore == 5 ? AppColors.accent : 
-                                checkin.moodScore == 4 ? AppColors.success : 
-                                checkin.moodScore == 3 ? AppColors.textSubtle : 
-                                checkin.moodScore == 2 ? AppColors.warning : AppColors.error;
 
+          // 4. Data Loaded State
+          return ListView.builder(
+            padding: const EdgeInsets.all(10.0),
+            itemCount: checkins.length,
+            itemBuilder: (context, index) {
+              final checkin = checkins[index];
               return Card(
-                elevation: 2,
-                margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 10.0),
+                elevation: 1,
+                margin: const EdgeInsets.only(bottom: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
-                  leading: Icon(
-                    _getMoodIcon(checkin.moodScore),
-                    color: moodColor,
-                    size: 30,
-                  ),
+                  // Mood score icon on the left
+                  leading: _buildMoodIcon(checkin.moodScore),
+                  // Date and Mood
                   title: Text(
-                    '$moodText (Score ${checkin.moodScore})',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: moodColor),
+                    DateFormat('EEEE, MMM d, y').format(checkin.date),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text(
-                    '$formattedDate\n${checkin.notes.isNotEmpty ? checkin.notes : 'No notes recorded.'}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Mood: ${_getMoodLabel(checkin.moodScore)}', style: const TextStyle(fontSize: 14)),
+                      if (checkin.note.isNotEmpty)
+                        Text(
+                          'Note: ${checkin.note}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontStyle: FontStyle.italic, color: AppColors.textSubtle),
+                        ),
+                    ],
                   ),
-                  trailing: const Icon(Icons.edit, color: AppColors.textSubtle),
+                  // Arrow to open for editing
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primaryColor),
                   onTap: () {
-                    // Navigate to DailyCheckinScreen for editing
+                    // CRITICAL FIX: Navigate to DailyCheckinScreen and pass the checkin object for editing
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => DailyCheckinScreen(
-                          checkinToEdit: checkin,
-                        ),
+                        builder: (context) => DailyCheckinScreen(checkin: checkin), // Use 'checkin' parameter
                       ),
                     );
-                    // The StreamBuilder will automatically rebuild the list when the item is updated/saved.
                   },
                 ),
               );
@@ -113,15 +88,53 @@ class HistoryScreen extends StatelessWidget {
     );
   }
 
-  // Helper function reused from daily_checkin_screen
-  IconData _getMoodIcon(int score) {
+  // Helper function to get the descriptive mood label
+  String _getMoodLabel(int score) {
     switch (score) {
-      case 5: return Icons.sentiment_very_satisfied;
-      case 4: return Icons.sentiment_satisfied;
-      case 3: return Icons.sentiment_neutral;
-      case 2: return Icons.sentiment_dissatisfied;
-      case 1: return Icons.sentiment_very_dissatisfied;
-      default: return Icons.sentiment_neutral;
+      case 1:
+        return 'Terrible 😞';
+      case 2:
+        return 'Bad 🙁';
+      case 3:
+        return 'Okay 😐';
+      case 4:
+        return 'Good 🙂';
+      case 5:
+        return 'Excellent 😄';
+      default:
+        return 'N/A';
     }
+  }
+
+  // Helper function to get the mood icon
+  Widget _buildMoodIcon(int score) {
+    IconData icon;
+    Color color;
+    switch (score) {
+      case 5:
+        icon = Icons.sentiment_very_satisfied;
+        color = AppColors.success;
+        break;
+      case 4:
+        icon = Icons.sentiment_satisfied;
+        color = Colors.green;
+        break;
+      case 3:
+        icon = Icons.sentiment_neutral;
+        color = AppColors.warning;
+        break;
+      case 2:
+        icon = Icons.sentiment_dissatisfied;
+        color = AppColors.error;
+        break;
+      case 1:
+        icon = Icons.sentiment_very_dissatisfied;
+        color = Colors.red[900]!;
+        break;
+      default:
+        icon = Icons.help_outline;
+        color = Colors.grey;
+    }
+    return Icon(icon, color: color, size: 30);
   }
 }

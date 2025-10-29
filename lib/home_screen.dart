@@ -1,22 +1,16 @@
-// lib/screens/home_screen.dart
+// lib/home_screen.dart
+
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+
+// --- CRITICAL IMPORTS ---
 import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-// NOTE: Assuming these are your existing model/service imports.
-import 'package:wellbeing_mobile_app/services/api_service.dart';
-import 'package:wellbeing_mobile_app/models/weather_model.dart';
-import 'package:wellbeing_mobile_app/models/quote_model.dart';
-
-// Check-in Imports
-import '../services/checkin_service.dart'; // Must be the Firestore version
-import 'daily_checkin_screen.dart';
-import 'history_screen.dart'; 
-import '../widgets/app_drawer.dart'; 
-import '../widgets/weather_card.dart'; 
-import '../widgets/quote_card.dart'; 
-
-
-// ------------------- HomeScreen -------------------
+import 'package:wellbeing_mobile_app/api_service.dart'; // Assuming this handles quote/weather
+import 'package:wellbeing_mobile_app/services/checkin_service.dart';
+import 'package:wellbeing_mobile_app/models/daily_checkin_model.dart'; // Correct Model Import
+import 'package:wellbeing_mobile_app/widgets/stats_chart.dart';
+import 'package:wellbeing_mobile_app/daily_checkin_screen.dart'; // For starting a new checkin
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,88 +20,270 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // 1. Define variables to hold fetched data
-  late WeatherModel _weatherData;
-  late QuoteModel _quoteData;
-  final ApiService _apiService = ApiService();
-  
-  // 2. Initialize CheckinService for the StreamBuilder
-  final CheckinService _checkinService = CheckinService();
-  bool _isApiLoading = true; // Separate loading state for API data
+  // Services and Data containers
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final ApiService _apiService = ApiService(); // Handles quotes and weather
+  final CheckinService _checkinService = CheckinService(); // Handles check-ins
+
+  // State variables
+  String _greeting = 'Hello!';
+  String _dailyQuote = 'Loading quote...';
+  String _weather = 'Loading weather...';
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _weatherData = WeatherModel.loading();
-    _quoteData = QuoteModel.loading();
-    
-    _fetchInitialData();
+    _loadAllInitialData();
   }
 
-  // UPDATED: Fetches only the API data, as check-in data now comes from the Stream.
-  Future<void> _fetchInitialData() async {
-    try {
-      final results = await Future.wait([
-        _apiService.fetchWeatherData('New York'), 
-        _apiService.fetchQuoteData(),
-      ]);
+  // --- Initial Data Loading ---
+  Future<void> _loadAllInitialData() async {
+    await Future.wait([
+      _initializeUserAndGreeting(),
+      _loadDailyQuote(),
+      _fetchWeatherData(),
+    ]);
 
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _initializeUserAndGreeting() async {
+    final user = _auth.currentUser;
+    String name = user?.displayName ?? 'User';
+    String timeOfDay = DateFormat('a').format(DateTime.now());
+
+    if (timeOfDay == 'AM') {
+      _greeting = 'Good morning, $name!';
+    } else if (DateTime.now().hour < 17) { // Before 5 PM
+      _greeting = 'Good afternoon, $name!';
+    } else {
+      _greeting = 'Good evening, $name!';
+    }
+  }
+
+  Future<void> _loadDailyQuote() async {
+    try {
+      final quote = await _apiService.fetchDailyQuote();
       if (mounted) {
         setState(() {
-          _weatherData = results[0] as WeatherModel;
-          _quoteData = results[1] as QuoteModel;
-          _isApiLoading = false; // API data is ready
+          _dailyQuote = '"${quote['quote']}" - ${quote['author']}';
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _weatherData = WeatherModel.loading(); 
-          _quoteData = QuoteModel.loading();
-          _isApiLoading = false; // Still need to stop loading even on error
+          _dailyQuote = 'Failed to load quote.';
         });
       }
-      debugPrint("Error fetching initial data: $e");
     }
   }
 
-  // NEW: Synchronous function to calculate summary data from the Stream data
-  Map<String, dynamic> _calculateSummary(List<DailyCheckin> history) {
-    history.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    
-    final latestCheckin = history.isNotEmpty ? history.first : null;
-
-    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-    
-    final recentCheckins = history.where(
-      (c) => c.timestamp.isAfter(sevenDaysAgo) && c.timestamp.isBefore(DateTime.now())
-    ).toList();
-    
-    final checkinCountLast7Days = recentCheckins.length;
-    double recentAverageMood = 0.0;
-
-    if (checkinCountLast7Days > 0) {
-      final totalScore = recentCheckins.fold(0, (sum, item) => sum + item.moodScore);
-      recentAverageMood = totalScore / checkinCountLast7Days;
+  Future<void> _fetchWeatherData() async {
+    try {
+      // NOTE: Assuming default location or user location logic exists in ApiService
+      final weatherData = await _apiService.fetchWeather();
+      if (mounted) {
+        setState(() {
+          _weather = '${weatherData['temp']}°C in ${weatherData['city']}';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _weather = 'Weather data unavailable.';
+        });
+      }
     }
-
-    return {
-      'latestCheckin': latestCheckin,
-      'recentAverageMood': recentAverageMood,
-      'checkinCountLast7Days': checkinCountLast7Days,
-    };
   }
-
-  // Helper function to handle navigation and refresh
-  Future<void> _navigateToCheckinScreen(BuildContext context) async {
-    // We don't need to await the result or call setState here, 
-    // because the StreamBuilder will automatically rebuild the UI
-    // when a new check-in is saved to Firestore.
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const DailyCheckinScreen(),
+  
+  // --- UI Components ---
+  Widget _buildGreetingAndQuote(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.primaryColor,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryColor.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            _greeting,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _dailyQuote,
+            style: const TextStyle(
+              fontSize: 16,
+              fontStyle: FontStyle.italic,
+              color: Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            _weather,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.white54,
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildStartCheckinButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          // Navigate to the check-in screen to start a new entry
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const DailyCheckinScreen(),
+            ),
+          );
+        },
+        icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+        label: const Text(
+          'Start Daily Check-in',
+          style: TextStyle(fontSize: 18, color: Colors.white),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.accent,
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsSection(List<DailyCheckin> checkins) {
+    // Only use the last 7 entries for the weekly chart
+    final recentCheckins = checkins.take(7).toList(); 
+
+    // Create the data list for the chart (reversed to show oldest on the left)
+    final moodData = recentCheckins.reversed.map((c) => c.moodScore.toDouble()).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Your Weekly Mood Snapshot',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 2,
+                blurRadius: 5,
+              ),
+            ],
+          ),
+          // Use the fixed StatsChart widget
+          child: StatsChart(moodData: moodData),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentCheckinsList(List<DailyCheckin> checkins) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recent Entries',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
+        ...checkins.take(3).map((checkin) {
+          return Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 10),
+            color: AppColors.secondary,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: ListTile(
+              leading: _buildMoodIcon(checkin.moodScore),
+              title: Text(
+                // FIX: Use the correct property 'date'
+                DateFormat('EEE, MMM d').format(checkin.date), 
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                // FIX: Use the correct property 'note'
+                checkin.note.isNotEmpty ? checkin.note : 'No note recorded', 
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSubtle),
+              onTap: () {
+                // Navigate to detail or edit screen
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    // FIX: Ensure correct parameter name is used if DailyCheckinScreen handles editing
+                    builder: (context) => DailyCheckinScreen(checkin: checkin),
+                  ),
+                );
+              },
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildMoodIcon(int score) {
+    IconData icon;
+    Color color;
+    switch (score) {
+      case 5:
+        icon = Icons.sentiment_very_satisfied;
+        color = AppColors.success;
+        break;
+      case 4:
+        icon = Icons.sentiment_satisfied;
+        color = Colors.green;
+        break;
+      case 3:
+        icon = Icons.sentiment_neutral;
+        color = AppColors.warning;
+        break;
+      case 2:
+        icon = Icons.sentiment_dissatisfied;
+        color = AppColors.error;
+        break;
+      case 1:
+        icon = Icons.sentiment_very_dissatisfied;
+        color = Colors.red[900]!;
+        break;
+      default:
+        icon = Icons.help_outline;
+        color = Colors.grey;
+    }
+    return Icon(icon, color: color, size: 30);
   }
 
 
@@ -115,353 +291,70 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('I2.0 - Wellbeing Coach'),
-        // ... (App Bar Actions and Leading are unchanged)
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
+        title: const Text('Wellbeing Dashboard'),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.home)),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.flash_on)),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.notifications)),
-          const CircleAvatar(
-            backgroundColor: Colors.white,
-            child: Text('F', style: TextStyle(color: AppColors.primaryColor)),
-          ),
-          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () {
+              // Assuming this logs out and pushes to the login screen
+              _auth.signOut();
+              // Replace this with your actual navigation logic to the login/entry screen
+            },
+            icon: const Icon(Icons.logout),
+          )
         ],
       ),
-      drawer: const AppDrawer(), 
-      
-      // CRITICAL UPDATE: Using StreamBuilder for real-time check-in data
-      body: StreamBuilder<List<DailyCheckin>>(
-        stream: _checkinService.getCheckinsStream(),
-        builder: (context, snapshot) {
-          
-          // 1. Check for connection states
-          if (snapshot.connectionState == ConnectionState.waiting || _isApiLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading data: ${snapshot.error}'));
-          }
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  // 1. Greeting and Daily Info
+                  _buildGreetingAndQuote(context),
+                  const SizedBox(height: 30),
 
-          // 2. Data is ready: Get history and calculate summary
-          final checkinHistory = snapshot.data ?? [];
-          final summary = _calculateSummary(checkinHistory);
-          final DailyCheckin? latestCheckin = summary['latestCheckin'];
-          final double recentAverageMood = summary['recentAverageMood'];
-          final int checkinCountLast7Days = summary['checkinCountLast7Days'];
+                  // 2. Start Check-in Button
+                  _buildStartCheckinButton(context),
+                  const SizedBox(height: 30),
 
-          // 3. Build the main content using the retrieved data
-          return ListView(
-            padding: const EdgeInsets.all(16.0),
-            children: <Widget>[
-              // Pass data to Greeting
-              _buildGreeting(context, latestCheckin), 
-              const SizedBox(height: 20),
-              
-              // Add Check-in Button (FAB is no longer here, so this stays)
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: () => _navigateToCheckinScreen(context), 
-                  icon: const Icon(Icons.add_task),
-                  label: const Text('Check-in Now!'), 
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                  // 3. Stats and Recent Check-ins
+                  // CRITICAL FIX: Use StreamBuilder for real-time check-in data
+                  StreamBuilder<List<DailyCheckin>>(
+                    stream: _checkinService.getCheckinsStream(), // FIX: Correct method call
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: LinearProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        // FIX: Added error handling
+                        return Center(child: Text('Error loading data: ${snapshot.error}'));
+                      }
+                      
+                      final checkins = snapshot.data ?? [];
+
+                      if (checkins.isEmpty) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: Text('No entries yet. Start your first check-in!', style: TextStyle(color: AppColors.textSubtle)),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: [
+                          _buildStatsSection(checkins),
+                          const SizedBox(height: 30),
+                          _buildRecentCheckinsList(checkins),
+                          const SizedBox(height: 20),
+                        ],
+                      );
+                    },
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              // 1. 7-Day Mood Summary (Pass calculated values)
-              _buildMoodSummary(recentAverageMood, checkinCountLast7Days), 
-              const SizedBox(height: 20),
-              
-              // 2. Latest Check-in Card (Pass latest check-in object)
-              if (latestCheckin != null) _buildLatestCheckinCard(latestCheckin),
-              const SizedBox(height: 20),
-
-              // 3. Weather Card (API data is ready if we passed the loading check)
-              WeatherCard(weatherData: _weatherData),
-              const SizedBox(height: 20),
-
-              // 4. Action Buttons
-              const Text('What do you want to work on right now?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 10),
-              _buildActionButtons(),
-              const SizedBox(height: 20),
-
-              // 5. Quote Card 
-              QuoteCard(quoteData: _quoteData),
-              const SizedBox(height: 20),
-              
-              // 6. Current Focus/Goal (Mock Data)
-              const Text('Your Current Focus:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 10),
-              _buildFocusCard(context),
-            ],
-          );
-        },
-      ),
-      // IMPORTANT: Add the FAB back to the main Scaffold
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToCheckinScreen(context),
-        child: const Icon(Icons.add),
-        tooltip: 'New Check-in',
-      ),
-    );
-  }
-
-  // --- Widget Builders ---
-  
-  // UPDATED: Now requires latestCheckin as an argument
-  Widget _buildGreeting(BuildContext context, DailyCheckin? latestCheckin) {
-    // UPDATED: Dynamic greeting based on latest check-in
-    final String greetingText = latestCheckin != null
-      ? 'Welcome back, Fernando.' // Personalized text
-      : 'No recent check-ins – how are you feeling today?';
-      
-    final String subtitleText = latestCheckin != null
-        ? 'Your last check-in was at ${DateFormat('h:mm a, MMM d').format(latestCheckin.timestamp)}.'
-        : 'Get started with a quick check-in.';
-      
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          greetingText, 
-          style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textDark,
-          ),
-        ),
-        Text(
-          subtitleText, 
-          style: const TextStyle(color: AppColors.textSubtle),
-        ),
-      ],
-    );
-  }
-
-  // UPDATED: Now requires recentAverageMood and checkinCountLast7Days as arguments
-  Widget _buildMoodSummary(double recentAverageMood, int checkinCountLast7Days) {
-    if (checkinCountLast7Days == 0) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.secondary,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Text(
-          'No check-ins in the last 7 days. Tap "Check-in Now!" to start tracking your mood.',
-          style: TextStyle(color: AppColors.textSubtle),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
-    // Determine the summary text based on the average mood
-    String summaryText;
-    Color summaryColor;
-    
-    if (recentAverageMood >= 4.0) {
-      summaryText = 'Great job! Your average mood is High.';
-      summaryColor = AppColors.accent;
-    } else if (recentAverageMood >= 3.0) {
-      summaryText = 'Your mood is stable. Keep an eye on things.';
-      summaryColor = AppColors.success;
-    } else {
-      summaryText = 'Your average mood is low. It might be time to reflect or seek support.';
-      summaryColor = AppColors.error;
-    }
-
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your Mood Summary (Last 7 Days)',
-              style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryColor,
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              summaryText,
-              style: TextStyle(fontSize: 16, color: summaryColor, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 15),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      recentAverageMood.toStringAsFixed(2),
-                      style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: summaryColor),
-                    ),
-                    const Text(
-                      'Average Score / 5',
-                      style: TextStyle(color: AppColors.textSubtle, fontSize: 12),
-                    ),
-                  ],
-                ),
-                Text(
-                  'from $checkinCountLast7Days entries',
-                  style: const TextStyle(color: AppColors.textDark, fontSize: 14),
-                ),
-              ],
-            ),
-             const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const HistoryScreen(),
-                    ),
-                  );
-                  // The stream handles refresh, no need for manual _loadCheckinData()
-                },
-                child: const Text('View Full History >>', style: TextStyle(color: AppColors.primaryColor)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  // UPDATED: Now requires DailyCheckin object as an argument
-  Widget _buildLatestCheckinCard(DailyCheckin latestCheckin) {
-    final formattedDate = DateFormat('MMM d, h:mm a').format(latestCheckin.timestamp);
-    
-    // Map mood score to an icon/label 
-    final moodText = latestCheckin.moodScore == 5 ? 'Great' : 
-                     latestCheckin.moodScore == 4 ? 'Good' : 
-                     latestCheckin.moodScore == 3 ? 'Okay' : 
-                     latestCheckin.moodScore == 2 ? 'Bad' : 'Awful';
-    final moodColor = latestCheckin.moodScore == 5 ? AppColors.accent : 
-                      latestCheckin.moodScore == 4 ? AppColors.success : 
-                      latestCheckin.moodScore == 3 ? AppColors.textSubtle : 
-                      latestCheckin.moodScore == 2 ? AppColors.warning : AppColors.error;
-
-
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Your Latest Check-in Details',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark),
-            ),
-            const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Mood: $moodText',
-                  style: TextStyle(fontSize: 16, color: moodColor, fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  formattedDate,
-                  style: const TextStyle(fontSize: 14, color: AppColors.textSubtle),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              latestCheckin.notes.isNotEmpty 
-                ? latestCheckin.notes 
-                : 'No notes recorded for this entry.',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.textSubtle),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildActionButtons() {
-    return Wrap(
-      spacing: 10.0,
-      runSpacing: 10.0,
-      children: [
-        ElevatedButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.military_tech, size: 18),
-          label: const Text('Set/Work on a Goal'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primaryColor,
-            foregroundColor: Colors.white,
-          ),
-        ),
-        ElevatedButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.bolt, size: 18),
-          label: const Text('Need a Quick Boost'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accent,
-            foregroundColor: AppColors.textDark,
-          ),
-        ),
-        ElevatedButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.trending_up, size: 18),
-          label: const Text('Review My Progress'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.success,
-            foregroundColor: Colors.white,
-          ),
-        ),
-      ],
-    );
-  }
-  
-  // MOCK DATA: To be replaced by the Goal Tracking feature next
-  Widget _buildFocusCard(BuildContext context) {
-    return const Card(
-      elevation: 2,
-      color: AppColors.secondary,
-      child: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Learn a New Language',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textDark),
-            ),
-            SizedBox(height: 5),
-            Text(
-              'Target: 75% complete by December',
-              style: TextStyle(color: AppColors.textSubtle),
-            ),
-            SizedBox(height: 10), 
-          ],
-        ),
-      ),
     );
   }
 }

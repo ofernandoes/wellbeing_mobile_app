@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "220816300373",
+    "project_id": "wellbeing-41b07",
+    "storage_bucket": "wellbeing-41b07.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:220816300373:android:e776800cbf6f4f983e37dc",
+        "android_client_info": {
+          "package_name": "com.example.wellbeing_mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqoFOECS53v4AoWyapjbTDtbvLFuX2ySE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

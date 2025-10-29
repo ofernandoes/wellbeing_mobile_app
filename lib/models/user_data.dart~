@@ -1,0 +1,46 @@
+// lib/models/user_data.dart
+
+class UserData {
+  final String username;
+  final int age;
+  final String primaryGoal;
+  final DateTime createdAt;
+
+  UserData({
+    required this.username,
+    required this.age,
+    required this.primaryGoal,
+    required this.createdAt,
+  });
+
+  factory UserData.fromMap(Map<String, dynamic> data) {
+    // Safely cast the timestamp from Firestore to DateTime
+    final timestamp = data['createdAt'];
+    DateTime date;
+    
+    if (timestamp is DateTime) {
+      date = timestamp;
+    } else if (timestamp != null && timestamp.runtimeType.toString().contains('Timestamp')) {
+      // Handle Firebase Timestamp (common case)
+      date = timestamp.toDate();
+    } else {
+      date = DateTime.now(); // Fallback
+    }
+
+    return UserData(
+      username: data['username'] as String? ?? 'N/A',
+      age: data['age'] as int? ?? 0,
+      primaryGoal: data['primaryGoal'] as String? ?? 'N/A',
+      createdAt: date,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'username': username,
+      'age': age,
+      'primaryGoal': primaryGoal,
+      // Note: Firestore service handles setting the FieldValue.serverTimestamp() for creation
+    };
+  }
+}

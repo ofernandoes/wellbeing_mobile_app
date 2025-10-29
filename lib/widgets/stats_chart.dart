@@ -1,194 +1,198 @@
-import 'package:flutter/material.dart';
+// lib/widgets/stats_chart.dart
+
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:wellbeing_mobile_app/theme/app_colors.dart';
+
+// Import the model if the chart uses it directly (e.g., to display points)
+// import 'package:wellbeing_mobile_app/models/daily_checkin_model.dart'; 
+
 
 class StatsChart extends StatelessWidget {
-  final String title;
-  final List<double> data; // List of 7 double values (scores)
-  final String bottomLabel;
+  final List<double> moodData; // Data points for the chart
+  // Example moodData: [3.0, 4.0, 5.0, 3.5, 4.5, 4.0, 3.0]
 
-  const StatsChart({
-    super.key,
-    required this.title,
-    required this.data,
-    required this.bottomLabel,
-  }) : assert(data.length == 7, 'The data list must contain exactly 7 values.');
+  const StatsChart({super.key, required this.moodData});
 
-  // Helper to determine the color based on the title
-  Color _getChartColor() {
-    if (title.contains('Mood')) {
-      return Colors.pink.shade300;
-    } else if (title.contains('Sleep')) {
-      return Colors.indigo.shade300;
-    } else if (title.contains('Exercise')) {
-      return Colors.green.shade300;
-    }
-    return Colors.grey;
-  }
+  // Calculate the highest y-value for chart scaling
+  double get maxMoodValue => moodData.isEmpty
+      ? 5.0
+      : moodData.reduce((a, b) => a > b ? a : b).ceilToDouble();
 
-  // Gets the maximum Y-axis value based on the chart type
-  double _getMaxY() {
-    if (title.contains('Mood')) {
-      return 5.0; // Mood scale is 1 to 5
-    } else if (title.contains('Sleep')) {
-      return 4.0; // Sleep scale is 1 to 4
-    } else if (title.contains('Exercise')) {
-      return 5.0; // Mock exercise scale is 0 to 5
-    }
-    return 5.0; 
-  }
+  // Calculate the lowest y-value for chart scaling
+  double get minMoodValue => moodData.isEmpty
+      ? 1.0
+      : moodData.reduce((a, b) => a < b ? a : b).floorToDouble();
+
 
   @override
   Widget build(BuildContext context) {
-    final chartColor = _getChartColor();
+    // If no data is present, show a placeholder
+    if (moodData.isEmpty) {
+      return const Center(
+        child: Text("Not enough data for chart.", style: TextStyle(color: AppColors.textSubtle)),
+      );
+    }
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return AspectRatio(
+      aspectRatio: 1.7,
       child: Padding(
-        padding: const EdgeInsets.only(top: 16, right: 16, bottom: 8, left: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Chart Title
-            Padding(
-              padding: const EdgeInsets.only(left: 14.0, bottom: 8),
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            // Line Chart Widget from fl_chart
-            SizedBox(
-              height: 200,
-              child: LineChart(
-                LineChartData(
-                  minX: 0,
-                  maxX: 6, // 7 points (0 to 6)
-                  minY: 0,
-                  maxY: _getMaxY(),
-                  
-                  // Configure the chart appearance (borders, grid)
-                  titlesData: FlTitlesData(
-                    show: true,
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), 
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), 
-                    
-                    // Bottom Titles (X-axis labels)
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 30,
-                        getTitlesWidget: (value, meta) {
-                          // Only show titles for the start (Day 1) and end (Day 7)
-                          if (value == 0 || value == 6) {
-                            return SideTitleWidget(
-                              // ✅ FIX: Removed obsolete 'axisSide' parameter (Line 90 fix)
-                              axisSide: meta.axisSide, 
-                              space: 8.0,
-                              child: Text('${value.toInt() + 1}', style: const TextStyle(fontSize: 10)),
-                            );
-                          }
-                          return const Text('');
-                        },
-                      ),
-                    ),
-                    // Left Titles (Y-axis labels)
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          // Show labels for min, max, and mid-points (e.g., 0, 2, 4, 5)
-                          if (value == 0 || value == 1 || value == _getMaxY() / 2 || value == _getMaxY()) {
-                            return Text(value.toInt().toString(), style: const TextStyle(fontSize: 10));
-                          }
-                          return const Text('');
-                        },
-                        reservedSize: 30,
-                        interval: 1,
-                      ),
-                    ),
-                  ),
-                  
-                  // Chart Grid Lines
-                  gridData: FlGridData(
-                    show: true,
-                    drawHorizontalLine: true,
-                    drawVerticalLine: true,
-                    getDrawingVerticalLine: (value) => FlLine(
-                      color: Colors.grey.withAlpha((255 * 0.1).round()),
-                      strokeWidth: 1,
-                    ),
-                    getDrawingHorizontalLine: (value) => FlLine(
-                      color: Colors.grey.withAlpha((255 * 0.1).round()),
-                      strokeWidth: 1,
-                    ),
-                  ),
-                  
-                  // Line Definition
-                  borderData: FlBorderData(show: false), // Hide default border
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: data.asMap().entries.map((entry) {
-                        // entry.key is the index (0 to 6), entry.value is the score
-                        // ✅ FIX: Added required 'meta' parameter (Line 89 fix)
-                        return FlSpot(
-                          entry.key.toDouble(), 
-                          entry.value, 
-                          meta: FlSpot.barEndMeta,
-                        );
-                      }).toList(),
-                      isCurved: true,
-                      color: chartColor,
-                      barWidth: 3,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (spot, percent, barData, index) {
-                          return FlDotCirclePainter(
-                            radius: 4,
-                            color: chartColor.darken(20), // Darker dot color
-                            strokeWidth: 1.5,
-                            strokeColor: Colors.white,
-                          );
-                        },
-                      ),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: chartColor.withAlpha((255 * 0.2).round()), // Light fill below the line
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            // Bottom Label/Description
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0, left: 14.0),
-              child: Text(
-                bottomLabel,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ),
-          ],
+        padding: const EdgeInsets.only(right: 18, left: 12, top: 24, bottom: 12),
+        child: LineChart(
+          _mainData(),
         ),
       ),
     );
   }
-}
 
-// Extension to darken color for dots
-extension ColorExtension on Color {
-  // NOTE: The deprecation fixes in the original code for this extension are assumed to be correct.
-  Color darken([int percent = 10]) {
-    assert(1 <= percent && percent <= 100);
-    final f = 1 - percent / 100;
-    return Color.fromARGB(
-      (alpha * 255.0).round() & 0xff,
-      (red * f * 255.0).round() & 0xff,
-      (green * f * 255.0).round() & 0xff,
-      (blue * f * 255.0).round() & 0xff,
+  // The main data configuration for the LineChart
+  LineChartData _mainData() {
+    return LineChartData(
+      // --- GRID & BORDERS ---
+      gridData: FlGridData(
+        show: true,
+        drawVerticalLine: false,
+        horizontalInterval: 1,
+        getDrawingHorizontalLine: (value) {
+          return FlLine(
+            // FIX: Replaced deprecated withOpacity usage
+            color: AppColors.primaryColor.withAlpha(50), 
+            strokeWidth: 1,
+          );
+        },
+      ),
+      titlesData: FlTitlesData(
+        show: true,
+        rightTitles: const AxisTitles(side: SideTitles.rightSide(showTitles: false)), // FIX: Use AxisTitles
+        topTitles: const AxisTitles(side: SideTitles.topSide(showTitles: false)), // FIX: Use AxisTitles
+        
+        // --- BOTTOM AXIS (X-Axis) ---
+        bottomTitles: AxisTitles( // FIX: Use AxisTitles
+          // CRITICAL FIX: The axisSide parameter is now inside SideTitles
+          sideTitles: SideTitles( 
+            showTitles: true,
+            reservedSize: 30,
+            interval: 1,
+            getTitlesWidget: _bottomTitleWidgets,
+          ),
+        ),
+
+        // --- LEFT AXIS (Y-Axis) ---
+        leftTitles: AxisTitles( // FIX: Use AxisTitles
+          // CRITICAL FIX: The axisSide parameter is now inside SideTitles
+          sideTitles: SideTitles( 
+            showTitles: true,
+            interval: 1,
+            getTitlesWidget: _leftTitleWidgets,
+            reservedSize: 40,
+          ),
+        ),
+      ),
+      borderData: FlBorderData(
+        show: true,
+        border: Border.all(
+          // FIX: Replaced deprecated withOpacity usage
+          color: AppColors.primaryColor.withAlpha(100), 
+          width: 1,
+        ),
+      ),
+      // Set the scale based on data
+      minX: 0,
+      maxX: (moodData.length - 1).toDouble(),
+      minY: minMoodValue - 0.5,
+      maxY: maxMoodValue + 0.5,
+      
+      // --- LINE BAR DATA ---
+      lineBarsData: [
+        LineChartBarData(
+          spots: moodData.asMap().entries.map((entry) {
+            return FlSpot(entry.key.toDouble(), entry.value);
+          }).toList(),
+          isCurved: true,
+          color: AppColors.primaryColor,
+          barWidth: 3,
+          isStrokeCapRound: true,
+          dotData: FlDotData(
+            show: true,
+            // Customizing dot display on the chart
+            getDotPainter: (spot, percent, barData, index) {
+              return FlDotCirclePainter(
+                radius: 4,
+                color: AppColors.accent,
+                // FIX: Replaced deprecated withOpacity usage
+                strokeColor: AppColors.primaryColor.withAlpha(200), 
+                strokeWidth: 2,
+              );
+            },
+          ),
+          belowBarData: BarAreaData(
+            show: true,
+            gradient: LinearGradient(
+              colors: [
+                // FIX: Replaced deprecated withOpacity usage
+                AppColors.primaryColor.withAlpha(150), 
+                AppColors.primaryColor.withAlpha(50),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Widget for the Y-Axis titles (Mood Scores)
+  Widget _leftTitleWidgets(double value, TitleMeta meta) {
+    const style = TextStyle(
+      fontWeight: FontWeight.bold,
+      fontSize: 14,
+      color: AppColors.textSubtle,
+    );
+    String text;
+    // Map the numerical value back to a descriptive label (1-5 scale)
+    switch (value.toInt()) {
+      case 1: text = 'Terrible'; break;
+      case 2: text = 'Bad'; break;
+      case 3: text = 'Okay'; break;
+      case 4: text = 'Good'; break;
+      case 5: text = 'Great'; break;
+      default: return Container();
+    }
+
+    // CRITICAL FIX: Use the meta to correctly position the widget
+    return SideTitleWidget(
+      axisSide: meta.axisSide, // CRITICAL FIX: Required parameter 'axisSide' is now defined via meta
+      space: 4,
+      child: Text(text, style: style),
+    );
+  }
+
+  // Widget for the X-Axis titles (Days/Points)
+  Widget _bottomTitleWidgets(double value, TitleMeta meta) {
+    const style = TextStyle(
+      fontWeight: FontWeight.bold,
+      fontSize: 14,
+      color: AppColors.textSubtle,
+    );
+    Widget text;
+    
+    // Display only the first, middle, and last points
+    if (value.toInt() == 0) {
+      text = const Text('Start', style: style);
+    } else if (value.toInt() == moodData.length - 1) {
+      text = const Text('End', style: style);
+    } else if (moodData.length > 3 && value.toInt() == moodData.length ~/ 2) {
+      text = const Text('Mid', style: style);
+    } else {
+      return Container(); // Hide other labels
+    }
+
+    // CRITICAL FIX: Use the meta to correctly position the widget
+    return SideTitleWidget(
+      axisSide: meta.axisSide, // CRITICAL FIX: Required parameter 'axisSide' is now defined via meta
+      space: 8.0,
+      child: text,
     );
   }
 }

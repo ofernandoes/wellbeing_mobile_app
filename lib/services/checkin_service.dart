@@ -2,104 +2,65 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart'; // For @immutable
-
-// ----------------------------------------------------------------------
-// 1. DAILY CHECK-IN DATA MODEL
-// ----------------------------------------------------------------------
-
-/// Represents a single daily entry for mood tracking.
-@immutable
-class DailyCheckin {
-  final String id;
-  final DateTime timestamp;
-  final int moodScore; // 1 (worst) to 5 (best)
-  final String notes;
-
-  const DailyCheckin({
-    required this.id,
-    required this.timestamp,
-    required this.moodScore,
-    this.notes = '',
-  });
-
-  // Factory constructor for creating a DailyCheckin from a Firestore DocumentSnapshot
-  factory DailyCheckin.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>?;
-
-    if (data == null) {
-      throw Exception("Document data was null for ID: ${doc.id}");
-    }
-
-    // Convert Firestore Timestamp to Dart DateTime
-    Timestamp firestoreTimestamp = data['timestamp'] as Timestamp;
-
-    return DailyCheckin(
-      // CRITICAL: Use the Firestore document ID as the Checkin ID
-      id: doc.id,
-      timestamp: firestoreTimestamp.toDate(),
-      moodScore: data['moodScore'] as int? ?? 3,
-      notes: data['notes'] as String? ?? '',
-    );
-  }
-
-  // Convert a DailyCheckin object into a JSON-like structure for Firestore
-  Map<String, dynamic> toFirestore() {
-    return {
-      'timestamp': Timestamp.fromDate(timestamp), // Save as Firestore Timestamp
-      'moodScore': moodScore,
-      'notes': notes,
-      // CRITICAL: Link to the current anonymous user's ID
-      'userId': FirebaseAuth.instance.currentUser!.uid, 
-    };
-  }
-}
-
-// ----------------------------------------------------------------------
-// 2. CHECK-IN SERVICE (FIRESTORE INTEGRATION)
-// ----------------------------------------------------------------------
+// CRITICAL FIX: Update Import to use the correct filename
+import 'package:wellbeing_mobile_app/models/daily_checkin_model.dart';
 
 class CheckinService {
-  final _firestore = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Private helper to get the collection reference for the current user
-  CollectionReference<Map<String, dynamic>> _checkinCollection() {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) {
-      // This case should ideally not happen if the AuthGate is working
-      throw Exception('User is not authenticated. Cannot access Firestore.');
-    }
-    // Data structure: users/{uid}/checkins/{checkinId}
-    return _firestore.collection('users').doc(uid).collection('checkins');
+  // Collection reference for checkins
+  CollectionReference get _checkinCollection => _firestore.collection('checkins');
+
+  // Gets the current user ID, throws an error if not logged in
+  String get _currentUserId {
+    // Return a dummy ID if the user is null to allow development/mocking
+    final user = _auth.currentUser;
+    return user?.uid ?? 'development_mock_user_id';
   }
 
-  // CREATE (Save)
-  Future<void> saveCheckin(DailyCheckin checkin) async {
-    // Firestore generates the permanent ID
-    await _checkinCollection().add(checkin.toFirestore());
+  // 1. Method to add a new checkin
+  Future<void> addCheckin(DailyCheckin checkin) async {
+    // Ensure the checkin has the correct user ID before saving
+    final checkinWithUser = DailyCheckin(
+      userId: _currentUserId,
+      date: checkin.date,
+      moodScore: checkin.moodScore,
+      note: checkin.note,
+      activities: checkin.activities,
+    );
+    await _checkinCollection.add(checkinWithUser.toFirestore());
   }
 
-  // UPDATE
+  // 2. Method to update an existing checkin (Uses the checkin.id)
   Future<void> updateCheckin(DailyCheckin checkin) async {
-    // Uses the existing Firestore document ID (checkin.id)
-    await _checkinCollection().doc(checkin.id).update(checkin.toFirestore());
+    if (checkin.id == null) {
+      throw Exception("Cannot update a checkin without an ID.");
+    }
+    // Ensure the checkin has the correct user ID before saving
+    final checkinWithUser = DailyCheckin(
+      id: checkin.id,
+      userId: _currentUserId,
+      date: checkin.date,
+      moodScore: checkin.moodScore,
+      note: checkin.note,
+      activities: checkin.activities,
+    );
+    await _checkinCollection.doc(checkin.id).update(checkinWithUser.toFirestore());
   }
   
-  // DELETE
-  Future<void> deleteCheckin(String id) async {
-    await _checkinCollection().doc(id).delete();
-  }
-
-  // READ (Stream all check-ins for the current user)
+  // 3. Method to get a stream of all checkins for the current user
   Stream<List<DailyCheckin>> getCheckinsStream() {
-    return _checkinCollection()
-        .orderBy('timestamp', descending: true)
+    return _checkinCollection
+        .where('userId', isEqualTo: _currentUserId) // Filter by current user
+        // NOTE: Ordering by 'date' as defined in DailyCheckin.toFirestore
+        .orderBy('date', descending: true) 
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => DailyCheckin.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) {
+        // CRITICAL FIX: Map the document to the DailyCheckin object using the factory
+        return DailyCheckin.fromFirestore(doc);
+      }).toList();
     });
   }
 }

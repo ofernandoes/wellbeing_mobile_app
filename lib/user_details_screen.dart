@@ -1,9 +1,8 @@
-// lib/screens/user_details_screen.dart
+// lib/user_details_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:wellbeing_mobile_app/services/firestore_service.dart';
-import 'package:wellbeing_mobile_app/theme/app_colors.dart';
-
+import 'package:wellbeing_mobile_app/app_colors.dart'; // FIX: Corrected import path based on your file system
 class UserDetailsScreen extends StatefulWidget {
   const UserDetailsScreen({super.key});
 
@@ -16,14 +15,14 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
   String _userName = '';
-  String _ageInput = ''; 
+  String _ageInput = '';
   String _goal = '';
   bool _isLoading = false;
 
   Future<void> _saveDetails() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
-      
+
       final int age = int.tryParse(_ageInput) ?? 0;
 
       setState(() {
@@ -32,15 +31,17 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
 
       try {
         await _firestoreService.saveUserDetails(
-          userName: _userName,
+          // Correct named parameters
+          username: _userName, 
           age: age,
-          goal: _goal,
+          primaryGoal: _goal,   
         );
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Details saved successfully!')),
           );
+          // Assuming '/home' is the route name for HomeScreen
           Navigator.of(context).pushReplacementNamed('/home'); 
         }
       } catch (e) {
@@ -48,6 +49,9 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Failed to save details: ${e.toString()}')),
           );
+        }
+      } finally {
+        if (mounted) {
           setState(() {
             _isLoading = false;
           });
@@ -75,6 +79,7 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
               ),
               const SizedBox(height: 30),
 
+              // Username Field
               TextFormField(
                 decoration: const InputDecoration(
                   labelText: 'Your Name/Nickname',
@@ -88,11 +93,12 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
                   return null;
                 },
                 onSaved: (value) {
-                  _userName = value ?? '';
+                  _userName = value ?? ''; 
                 },
               ),
               const SizedBox(height: 20),
-              
+
+              // Age Field
               TextFormField(
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
@@ -112,6 +118,7 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
               ),
               const SizedBox(height: 20),
 
+              // Primary Goal Field
               TextFormField(
                 decoration: const InputDecoration(
                   labelText: 'Your Primary Wellness Goal',
@@ -126,11 +133,12 @@ class _UserDetailsScreenState extends State<UserDetailsScreen> {
                   return null;
                 },
                 onSaved: (value) {
-                  _goal = value ?? '';
+                  _goal = value ?? ''; 
                 },
               ),
               const SizedBox(height: 40),
 
+              // Save Button
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveDetails,
                 style: ElevatedButton.styleFrom(

@@ -1,7 +1,4 @@
-
-
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.wellbeing_mobile_app">
-
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:label="wellbeing_mobile_app"
         android:name="${applicationName}"

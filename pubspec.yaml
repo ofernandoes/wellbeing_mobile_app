@@ -18,34 +18,33 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # --- CORE FIREBASE PACKAGES (Required for Auth & Data) ---
-  firebase_core: # Using the latest compatible version
-  firebase_auth: # Using the latest compatible version
-  cloud_firestore: # Using the latest compatible version
+  # --- CORE FIREBASE PACKAGES (Fixed to known stable versions) ---
+  firebase_core: ^4.2.0    
+  firebase_auth: ^6.1.1    
+  cloud_firestore: ^6.0.3  
 
-  # --- UTILITY PACKAGES (Required for App Functionality) ---
-  intl: ^0.18.0 # For DateFormat
-  flutter_tts: ^3.7.0 # Text-to-Speech
-  shared_preferences: ^2.2.2 # Persisting data
+  # --- UTILITY PACKAGES (Updated to latest major versions) ---
+  intl: ^0.20.2             # Updated
+  flutter_tts: ^4.2.3       # Updated
+  shared_preferences: ^2.2.2 
   cupertino_icons: ^1.0.6
   
   # --- NEW MISSING PACKAGES ---
-  # We use these broad constraints to allow the pub system to find the newest working versions.
-  http: 
-  uuid: 
-  font_awesome_flutter: 
-  fl_chart: # CRITICAL FIX: Removing the version constraint to allow update
+  http: ^1.2.1               
+  uuid: ^4.3.1               
+  font_awesome_flutter: ^10.7.0 
+  fl_chart: ^0.68.0          
   
 dev_dependencies:
   flutter_test:
     sdk: flutter
   
-  # Linter Packages 
-  flutter_lints: ^3.0.0
-  lints: ^3.0.0
+  # Linter Packages (Updated to latest major versions)
+  flutter_lints: ^6.0.0
+  lints: ^6.0.0
   
-  # Required for Firebase configuration tool
-  flutterfire_cli: 
+  # Required for Firebase configuration tool (CRITICAL FIX: Downgraded)
+  flutterfire_cli: ^0.1.1+2 # Downgraded to resolve conflict with intl ^0.20.2
 
 # ===============================================
 # FLUTTER CONFIGURATION
@@ -53,4 +52,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  
+  # Add assets below to include them in your application
+  assets:
+    - images/a_dat_burr.jpeg
+    - images/a_dat_ham.jpeg
